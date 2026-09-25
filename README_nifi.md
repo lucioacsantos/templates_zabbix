@@ -67,6 +67,38 @@ curl -sk -X POST "{$NIFI_URL}/access/token" \
 - Processadores inválidos/parados no PG (AVERAGE)
 - Bullets de ERROR no bulletin board (AVERAGE)
 
+## Renovação automática do token
+
+O NiFi **não** emite tokens de longa duração: o JWT máximo é de **12h** (hardcoded,
+`StandardBearerTokenProvider.MAXIMUM_EXPIRATION`) e o single-user login gera tokens de **8h** fixos.
+Não existe "API token"/"service token" na UI nem via CLI.
+
+Para o Zabbix, o token é renovado automaticamente pelo script `renovar_nifi_token.sh`
+(login no NiFi + atualização de `{$NIFI.TOKEN}` via API do Zabbix).
+
+Instalação:
+
+```bash
+chmod +x renovar_nifi_token.sh
+# executar manualmente para validar:
+./renovar_nifi_token.sh
+# instalar no crontab (renova a cada 7h — folga de 1h antes da expiração de 8h):
+( crontab -l 2>/dev/null; \
+  echo "0 */7 * * * $PWD/renovar_nifi_token.sh >> $HOME/renovar-nifi-token.log 2>&1" ) | crontab -
+```
+
+Log de execução: `~/renovar-nifi-token.log`. Variáveis ajustáveis no topo do script
+(`ZABBIX_HOST_NAME`, `ZABBIX_MACRO`, `NIFI_TOKEN_URL`).
+
+### Alternativa oficial: mTLS com client certificate
+
+A recomendação oficial do NiFi para automação/monitoramento é autenticação por
+**certificado de cliente (X.509)** — sem tokens/renovação. No Zabbix, um item HTTP não
+suporta mTLS com certificado de cliente; seria necessário um script proxy (mesmo modelo do
+cron acima, com `curl --cert/--key`). Para o cenário atual, o cron de renovação é mais simples.
+
+## Observações
+
 ## Observações
 
 - A LLD de filas depende da LLD de PGs do master (macro `{#PGID}`).
