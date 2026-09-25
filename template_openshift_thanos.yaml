@@ -1,7 +1,7 @@
 zabbix_export:
   version: '7.4'
   templates:
-  - uuid: 50e0000101f6f708192a3b4c5d6e7000
+  - uuid: ebcc94cdbd12404ea91e28711fe6259a
     template: OpenShift Thanos API by JS
     name: OpenShift Thanos API by JS
     description: 'Template master para monitoramento de namespaces OpenShift via API
@@ -85,7 +85,7 @@ zabbix_export:
       value: '0'
       description: 'Filtro LLD: ResourceQuota de memoria >= valor (bytes). 0 = todos.'
     items:
-    - uuid: 50e0000102f6f708192a3b4c5d6e7000
+    - uuid: 736903d326504b98b11a9fd608d23b6d
       key: thanos.thanos_api_status_do_servico
       name: 'Thanos API: Status do servico'
       type: HTTP_AGENT
@@ -112,7 +112,7 @@ zabbix_export:
           \ 'targets_up': up, 'targets_down': total - up, 'namespaces': Object.keys(ns).sort()\
           \ });\n"
       triggers:
-      - uuid: 50e0000103f6f708192a3b4c5d6e7000
+      - uuid: 2e4006ad05fe436e9ce4236dfc9aa060
         expression: find(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,1m,"regexp","[Ff][Aa][Ll][Hh][Aa]|[Dd][Oo][Ww][Nn]")=1
         name: 'Thanos API: servico indisponivel'
         opdata: 'Thanos API: {ITEM.LASTVALUE1}'
@@ -123,7 +123,7 @@ zabbix_export:
         - tag: scope
           value: availability
     discovery_rules:
-    - uuid: 50e0000104f6f708192a3b4c5d6e7000
+    - uuid: 6df897edd03649ad89da667d784dee1c
       key: thanos.discovery.descoberta_de_namespaces
       name: Descoberta de namespaces
       type: HTTP_AGENT
@@ -153,7 +153,7 @@ zabbix_export:
           \    '{#NSNAME}': n,\n    '{#NSCPUQUOTA}': nsSet[n].cpu,\n    '{#NSMEMQUOTA}':\
           \ nsSet[n].mem\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
       item_prototypes:
-      - uuid: 50e0000105f6f708192a3b4c5d6e7000
+      - uuid: 8a50915bdcc54963bb16a99a593393df
         key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Status (up targets)'
         type: HTTP_AGENT
@@ -190,7 +190,7 @@ zabbix_export:
       - lld_macro: '{#NSMEMQUOTA}'
         path: $.mem
       trigger_prototypes:
-      - uuid: 50e0000106f6f708192a3b4c5d6e7000
+      - uuid: e5e59bb8803d4932b23c7eabdb8280ee
         expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER}m)=0
         name: 'Namespace {#NSNAME}: sem targets up (down)'
         priority: WARNING
@@ -210,7 +210,7 @@ zabbix_export:
     - tag: target
       value: thanos
     valuemaps:
-    - uuid: 50e0000107f6f708192a3b4c5d6e7000
+    - uuid: cc73ea27641e425ab3cf28b5eedf58a3
       name: Thanos API status
       mappings:
       - value: OK
@@ -220,7 +220,7 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: 50e0000108f6f708192a3b4c5d6e7000
+  - uuid: 917ae0643ae444f388b63ba3ad6054b2
     template: OpenShift Thanos API by JS Resource Limits
     name: OpenShift Thanos API by JS Resource Limits
     description: 'Coleta por namespace (descoberto pelo template master):
@@ -235,7 +235,7 @@ zabbix_export:
     groups:
     - name: Templates
     items:
-    - uuid: 50e0000109f6f708192a3b4c5d6e7000
+    - uuid: e3a41dd5d814483dab7e3bd435a0a8ab
       key: thanos.thanos_api_item_de_suporte_nao_usado
       name: 'Thanos API: Item de suporte (nao usado)'
       type: HTTP_AGENT
@@ -253,7 +253,7 @@ zabbix_export:
         parameters:
         - return 1;
     discovery_rules:
-    - uuid: 50e000010af6f708192a3b4c5d6e7000
+    - uuid: 1193d234ca174fd2b2a1fe1814d7995c
       key: thanos.discovery.namespace_nsname_recursos
       name: 'Namespace {#NSNAME}: Recursos'
       type: HTTP_AGENT
@@ -267,7 +267,7 @@ zabbix_export:
       lifetime: 30d
       description: Item de suporte para manter a LLD de recursos (dependente do master).
       item_prototypes:
-      - uuid: 50e000010bf6f708192a3b4c5d6e7000
+      - uuid: 561f453c2f214093a5c4f5ae79f96e43
         key: thanos.namespace_nsname_cpu_usada_millicores[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU usada (millicores)'
         type: HTTP_AGENT
@@ -293,7 +293,7 @@ zabbix_export:
             * 1000) : 0;
 
             '
-      - uuid: 50e000010cf6f708192a3b4c5d6e7000
+      - uuid: fef4e0dd620c4bf1b900e6a34ba1c75f
         key: thanos.namespace_nsname_memoria_usada_bytes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria usada (bytes)'
         type: HTTP_AGENT
@@ -319,7 +319,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e000010df6f708192a3b4c5d6e7000
+      - uuid: 93c8d8dc2ee147fcb2cf666acb740f4c
         key: thanos.namespace_nsname_cpu_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do limite'
         type: HTTP_AGENT
@@ -348,7 +348,7 @@ zabbix_export:
             return isNaN(num) ? 0 : num;
 
             '
-      - uuid: 50e000010ef6f708192a3b4c5d6e7000
+      - uuid: 239e4300c8564adeb4715d08552bc45b
         key: thanos.namespace_nsname_memoria_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do limite'
         type: HTTP_AGENT
@@ -377,7 +377,7 @@ zabbix_export:
             return isNaN(num) ? 0 : num;
 
             '
-      - uuid: 50e000010ff6f708192a3b4c5d6e7000
+      - uuid: 5692df8dd8f24406b93a47720ed1fabb
         key: thanos.namespace_nsname_cpu_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do Request'
         type: HTTP_AGENT
@@ -406,7 +406,7 @@ zabbix_export:
             return isNaN(num) ? 0 : num;
 
             '
-      - uuid: 50e0000110f6f708192a3b4c5d6e7000
+      - uuid: e599d18e88f040bb9210a4dd51794e1a
         key: thanos.namespace_nsname_memoria_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do Request'
         type: HTTP_AGENT
@@ -435,7 +435,7 @@ zabbix_export:
             return isNaN(num) ? 0 : num;
 
             '
-      - uuid: 50e0000111f6f708192a3b4c5d6e7000
+      - uuid: 99b918487a244fca9c9cb95bd0d01b0b
         key: thanos.namespace_nsname_quota_de_cpu_cores[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de CPU (cores)'
         type: HTTP_AGENT
@@ -461,7 +461,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e0000112f6f708192a3b4c5d6e7000
+      - uuid: 0a72ddc6ae854514b751adf2e3e2c84e
         key: thanos.namespace_nsname_quota_de_memoria_bytes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de memoria (bytes)'
         type: HTTP_AGENT
@@ -491,7 +491,7 @@ zabbix_export:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
       trigger_prototypes:
-      - uuid: 50e0000113f6f708192a3b4c5d6e7000
+      - uuid: d5f5b2e2aa084c0a929e1e23bae24dcb
         expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
         priority: WARNING
@@ -503,7 +503,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: performance
-      - uuid: 50e0000114f6f708192a3b4c5d6e7000
+      - uuid: 5dd350680b044189bd239472041b841c
         expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do limite'
         priority: WARNING
@@ -518,7 +518,7 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: 50e0000115f6f708192a3b4c5d6e7000
+  - uuid: cc6e0859e0b34b86b64403efa11eb534
     template: OpenShift Thanos API by JS Pods
     name: OpenShift Thanos API by JS Pods
     description: 'Coleta por namespace (descoberto pelo template master):
@@ -533,7 +533,7 @@ zabbix_export:
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: 50e0000116f6f708192a3b4c5d6e7000
+    - uuid: 409885e53d1541bb9c8bc99df776f864
       key: thanos.discovery.namespace_nsname_pods
       name: 'Namespace {#NSNAME}: Pods'
       type: HTTP_AGENT
@@ -547,7 +547,7 @@ zabbix_export:
       lifetime: 30d
       description: Item de suporte para manter a LLD (dependente do master).
       item_prototypes:
-      - uuid: 50e0000117f6f708192a3b4c5d6e7000
+      - uuid: 29714825f51c41cfb30e9795285c9ded
         key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods rodando'
         type: HTTP_AGENT
@@ -572,7 +572,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e0000118f6f708192a3b4c5d6e7000
+      - uuid: 310a99c1615a47ea8da267ab8d1285db
         key: thanos.namespace_nsname_pods_pendentes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods pendentes'
         type: HTTP_AGENT
@@ -597,7 +597,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e0000119f6f708192a3b4c5d6e7000
+      - uuid: ba2f8102a8b24a6a9d2cb02929c10534
         key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods com falha'
         type: HTTP_AGENT
@@ -622,7 +622,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e000011af6f708192a3b4c5d6e7000
+      - uuid: 6f9b06a7d6364a06bf2bf41128220ca1
         key: thanos.namespace_nsname_pods_desconhecidos[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods desconhecidos'
         type: HTTP_AGENT
@@ -647,7 +647,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e000011bf6f708192a3b4c5d6e7000
+      - uuid: f860a777b02b487c8f47ef94994567f9
         key: thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods nao rodando'
         type: HTTP_AGENT
@@ -672,7 +672,7 @@ zabbix_export:
             : 0;
 
             '
-      - uuid: 50e000011cf6f708192a3b4c5d6e7000
+      - uuid: 22e0e3107a094a7b9069c5b87fbafe14
         key: thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Restarts de containers (1h)'
         type: HTTP_AGENT
@@ -705,7 +705,7 @@ zabbix_export:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
       trigger_prototypes:
-      - uuid: 50e000011df6f708192a3b4c5d6e7000
+      - uuid: d3d47939471043ff93a455b77fd4bf2b
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: pods pendentes'
         priority: AVERAGE
@@ -717,7 +717,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: capacity
-      - uuid: 50e000011ef6f708192a3b4c5d6e7000
+      - uuid: dec2ed76532f443b9709bcebcfe17903
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: pods nao rodando'
         priority: AVERAGE
@@ -729,7 +729,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: availability
-      - uuid: 50e000011ff6f708192a3b4c5d6e7000
+      - uuid: 0cc4ef6bdf6a4980908ff83d2e4ed064
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
         priority: WARNING
@@ -744,7 +744,7 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: 50e0000120f6f708192a3b4c5d6e7000
+  - uuid: 8538380cf62840de9eb70977c4b779b4
     template: OpenShift Thanos API by JS Network/HPA
     name: OpenShift Thanos API by JS Network/HPA
     description: 'Coleta por namespace (descoberto pelo template master):
@@ -761,7 +761,7 @@ zabbix_export:
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: 50e0000121f6f708192a3b4c5d6e7000
+    - uuid: 5f5a64122dfa4df5ab5c367275c21311
       key: thanos.discovery.namespace_nsname_rede_hpa
       name: 'Namespace {#NSNAME}: Rede/HPA'
       type: HTTP_AGENT
@@ -775,7 +775,7 @@ zabbix_export:
       lifetime: 30d
       description: Item de suporte para manter a LLD (dependente do master).
       item_prototypes:
-      - uuid: 50e0000122f6f708192a3b4c5d6e7000
+      - uuid: 65d790cfba9b484ca0185dd02bd54a77
         key: thanos.namespace_nsname_rede_rx[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Rede RX'
         type: HTTP_AGENT
@@ -804,7 +804,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000123f6f708192a3b4c5d6e7000
+      - uuid: 39ea00e20acc4349ba72c15ac6911b2c
         key: thanos.namespace_nsname_rede_tx[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Rede TX'
         type: HTTP_AGENT
@@ -833,7 +833,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000124f6f708192a3b4c5d6e7000
+      - uuid: 358d6c00009e41b8b2ed773a7fe15461
         key: thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Alertas Prometheus firing'
         type: HTTP_AGENT
@@ -861,7 +861,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000125f6f708192a3b4c5d6e7000
+      - uuid: a8faaf036bbd4446bf3d3a66eaf9981b
         key: thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Requisicoes ao apiserver'
         type: HTTP_AGENT
@@ -890,7 +890,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000126f6f708192a3b4c5d6e7000
+      - uuid: 41c88e17cda347f085f50b06d4e46fb7
         key: thanos.namespace_nsname_hpa_replicas_atuais[{#NSNAME}]
         name: 'Namespace {#NSNAME}: HPA replicas atuais'
         type: HTTP_AGENT
@@ -918,7 +918,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000127f6f708192a3b4c5d6e7000
+      - uuid: 45c12b169c424fbab56d48380adf096f
         key: thanos.namespace_nsname_hpa_replicas_desejadas[{#NSNAME}]
         name: 'Namespace {#NSNAME}: HPA replicas desejadas'
         type: HTTP_AGENT
@@ -946,7 +946,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000128f6f708192a3b4c5d6e7000
+      - uuid: 818b5de64a5747ce9965965e1e6323c9
         key: thanos.namespace_nsname_hpa_minimo_de_replicas[{#NSNAME}]
         name: 'Namespace {#NSNAME}: HPA minimo de replicas'
         type: HTTP_AGENT
@@ -974,7 +974,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e0000129f6f708192a3b4c5d6e7000
+      - uuid: 01e5ecf071bb4330a53293182c2e12be
         key: thanos.namespace_nsname_hpa_maximo_de_replicas[{#NSNAME}]
         name: 'Namespace {#NSNAME}: HPA maximo de replicas'
         type: HTTP_AGENT
@@ -1002,7 +1002,7 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-      - uuid: 50e000012af6f708192a3b4c5d6e7000
+      - uuid: 68e3ae5719c04b0fa2e5943b37553251
         key: thanos.namespace_nsname_hpa_util[{#NSNAME}]
         name: 'Namespace {#NSNAME}: HPA util. (%)'
         type: HTTP_AGENT
@@ -1035,7 +1035,7 @@ zabbix_export:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
       trigger_prototypes:
-      - uuid: 50e000012bf6f708192a3b4c5d6e7000
+      - uuid: a11d1a7da3914d3b8a9502ff6ae69fea
         expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: alertas Prometheus firing'
         priority: WARNING
@@ -1047,7 +1047,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: notice
-      - uuid: 50e000012cf6f708192a3b4c5d6e7000
+      - uuid: 6d56b9b3221e4b3180cd4e0d12ade110
         expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
         name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
         priority: WARNING
@@ -1059,7 +1059,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: performance
-      - uuid: 50e000012df6f708192a3b4c5d6e7000
+      - uuid: 638035325c2945f2afe824c5191c1ded
         expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
         name: 'Namespace {#NSNAME}: HPA saturado'
         priority: WARNING
@@ -1076,6 +1076,6 @@ zabbix_export:
       version: '1.0'
   template_groups:
   - name: Templates
-    uuid: 50e000012ef6f708192a3b4c5d6e7000
+    uuid: 0a7a295251a0492cae0c2392d09e5e6f
   - name: Templates/applications
-    uuid: 50e000012ff6f708192a3b4c5d6e7000
+    uuid: f2f33e664a8d49088bd371dcdc259b61
