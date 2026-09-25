@@ -2,930 +2,1077 @@ zabbix_export:
   version: '6.0'
   date: '2026-09-25T00:00:00Z'
   groups:
-    - name: Templates
-    - name: Templates/applications
+  - name: Templates
+  - name: Templates/applications
   templates:
-    - uuid: 6f1a2b3c4d5e6f708192a3b4c5d6e7f0
-      template: OpenShift Thanos API by JS
-      name: 'OpenShift Thanos API by JS'
-      description: |
-        Template master para monitoramento de namespaces OpenShift via API Thanos/Prometheus
-        (Thanos Querier). Coleta e processamento feitos com JavaScript embutido (item HTTP + JS),
-        sem necessidade de Zabbix agent.
+  - uuid: 6f1a2b3c4d5e6f708192a3b4c5d6e7f0
+    template: OpenShift Thanos API by JS
+    name: OpenShift Thanos API by JS
+    description: 'Template master para monitoramento de namespaces OpenShift via API
+      Thanos/Prometheus
 
-        A LLD descobre namespaces via query `up` (job kubernetes-pods) ou usa uma lista estatica
-        definida em {$THANOS.NAMESPACES}. Os templates dependentes agregam recursos, pods,
-        rede, quota e HPA por namespace.
+      (Thanos Querier). Coleta e processamento feitos com JavaScript embutido (item
+      HTTP + JS),
 
-        Requer Zabbix Server/Proxy >= 6.0 e conectividade HTTP(S) do Zabbix ate o Thanos Querier.
-      vendor: Internal
-      groups:
-        - name: Templates
-      macros:
-        - macro: '{$THANOS.URL}'
-          value: 'https://thanos-querier-openshift-monitoring.apps.cluster.example'
-          description: 'URL base do Thanos Query/Querier (sem barra final).'
-        - macro: '{$THANOS.TOKEN}'
-          type: SECRET_TEXT
-          description: 'Bearer token de service account com permissao de leitura das metricas.'
-        - macro: '{$THANOS.NAMESPACES}'
-          value: ''
-          description: 'Lista estatica de namespaces separados por virgula (regex). Vazio = descobrir via query `up`.'
-        - macro: '{$THANOS.STEP}'
-          value: 60s
-          description: 'Step das queries PromQL (range/vector).'
-        - macro: '{$THANOS.TIMEOUT}'
-          value: '15'
-          description: 'Timeout (s) das requisicoes HTTP.'
-        - macro: '{$THANOS.RETRIES}'
-          value: '2'
-          description: 'Tentativas extras em caso de falha.'
-        - macro: '{$THANOS.HTTP_PROXY}'
-          value: ''
-          description: 'Proxy HTTP opcional (ex.: http://proxy:8080).'
-        - macro: '{$THANOS.PROXY_DNS}'
-          value: '0'
-          description: 'Usar proxy para hostnames (1=sim, 0=nao).'
-        - macro: '{$THANOS.VERIFY_HOST}'
-          value: '1'
-          description: 'Validar host/SSL do endpoint (1=sim, 0=nao).'
-        - macro: '{$THANOS.STATUS_NS_TRIGGER}'
-          value: '3'
-          description: 'Ciclos com namespace down antes do trigger.'
-        - macro: '{$THANOS.CPU_LIMIT_PCT}'
-          value: '90'
-          description: 'Percentual do limite de CPU por namespace para trigger.'
-        - macro: '{$THANOS.MEM_LIMIT_PCT}'
-          value: '90'
-          description: 'Percentual do limite de memoria por namespace para trigger.'
-        - macro: '{$THANOS.EPS_P95}'
-          value: '500'
-          description: 'Requisicoes/s p95 por namespace (informativo).'
-        - macro: '{$THANOS.EPS_MAX}'
-          value: '1000'
-          description: 'Requisicoes/s maximo por namespace para trigger.'
-        - macro: '{$THANOS.HPA_MIN_PCT}'
-          value: '90'
-          description: 'Percentual do minimo de replicas HPA para trigger.'
-        - macro: '{$THANOS.HPA_MAX_PCT}'
-          value: '90'
-          description: 'Percentual do maximo de replicas HPA para trigger.'
-        - macro: '{$THANOS.NS_CPU_LIMIT}'
-          value: '0'
-          description: 'Filtro LLD: ResourceQuota de CPU >= valor (cores). 0 = todos.'
-        - macro: '{$THANOS.NS_MEM_LIMIT_GT}'
-          value: '0'
-          description: 'Filtro LLD: ResourceQuota de memoria >= valor (bytes). 0 = todos.'
-      items:
-        - uuid: 7a1b2c3d4e5f6f708192a3b4c5d6e7f0
-          key: thanos.thanos_api_status_do_servico
-          name: 'Thanos API: Status do servico'
-          type: HTTP_AGENT
-          value_type: CHAR
-          history: '7d'
-          trends: '0'
-          request_method: GET
-          url: '{$THANOS.URL}/api/v1/query?query=up%7Bjob%3D%22kubernetes-pods%22%7D'
-          headers:
-            - name: Authorization
-              value: 'Bearer {$THANOS.TOKEN}'
-          timeout: '{$THANOS.TIMEOUT}s'
-          retry_on_fail: 'YES'
-          retry_attempt: '{$THANOS.RETRIES}'
-          retry_interval: '5s'
-          tags:
-            - tag: component
-              value: health
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var body = JSON.parse(value);
-                  if (body.status !== 'success') { throw 'Thanos API status: ' + body.status; }
-                  var ns = {};
-                  var total = 0;
-                  var up = 0;
-                  body.data.result.forEach(function (r) {
-                    total++;
-                    if (parseFloat(r.value[1]) > 0) { up++; }
-                    var n = r.metric.namespace;
-                    if (n) { ns[n] = 1; }
-                  });
-                  return JSON.stringify({ 'status': 'success', 'targets_total': total, 'targets_up': up, 'targets_down': total - up, 'namespaces': Object.keys(ns).sort() });
-          triggers:
-            - uuid: 8a1b2c3d4e5f6f708192a3b4c5d6e7f0
-              expression: 'find(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,1m,"regexp","[Ff][Aa][Ll][Hh][Aa]|[Dd][Oo][Ww][Nn]")=1'
-              name: 'Thanos API: servico indisponivel'
-              opdata: 'Thanos API: {ITEM.LASTVALUE1}'
-              priority: HIGH
-              description: 'A coleta do status do Thanos API falhou ou retornou servico down.'
-              manual_close: 'YES'
-              tags:
-                - tag: scope
-                  value: availability
-      discovery_rules:
-        - uuid: 9a1b2c3d4e5f6f708192a3b4c5d6e7f0
-          key: thanos.discovery.descoberta_de_namespaces
-          name: 'Descoberta de namespaces'
-          type: HTTP_AGENT
-          request_method: GET
-          url: '{$THANOS.URL}/api/v1/query?query=up%7Bjob%3D%22kubernetes-pods%22%7D'
-          headers:
-            - name: Authorization
-              value: 'Bearer {$THANOS.TOKEN}'
-          timeout: '{$THANOS.TIMEOUT}s'
-          retry_on_fail: 'YES'
-          retry_attempt: '{$THANOS.RETRIES}'
-          retry_interval: '5s'
-          delay: 1h
-          lifetime: 30d
-          description: 'Descobre namespaces alvo via query `up`; usa {$THANOS.NAMESPACES} se definido.'
-          lld_macros:
-            - macro: '{#NSNAME}'
-            - macro: '{#NSCPUQUOTA}'
-            - macro: '{#NSMEMQUOTA}'
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  var STATIC = '{$THANOS.NAMESPACES}';
-                  var CPU_MIN = parseFloat('{$THANOS.NS_CPU_LIMIT}') || 0;
-                  var MEM_MIN = parseFloat('{$THANOS.NS_MEM_LIMIT_GT}') || 0;
-                  var nsSet = {};
-                  if (STATIC && STATIC.trim() !== '') {
-                    STATIC.split(',').forEach(function (s) { nsSet[s.trim()] = { cpu: 0, mem: 0 }; });
-                  }
-                  var body = JSON.parse(value);
-                  if (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }
-                  body.data.result.forEach(function (r) {
-                    var n = r.metric.namespace;
-                    if (n && !nsSet[n]) { nsSet[n] = { cpu: 0, mem: 0 }; }
-                  });
-                  body.data.result.forEach(function (r) {
-                    var q = r.metric.quota || '';
-                    var m = /(?:cpu=(\d+(?:\.\d+)?))/.exec(q);
-                    if (m) { r._cpu = parseFloat(m[1]); }
-                  });
-                  var rows = [];
-                  Object.keys(nsSet).sort().forEach(function (n) {
-                    rows.push({
-                      '{#NSNAME}': n,
-                      '{#NSCPUQUOTA}': nsSet[n].cpu,
-                      '{#NSMEMQUOTA}': nsSet[n].mem
-                    });
-                  });
-                  return JSON.stringify({ 'data': rows });
-          item_prototypes:
-            - uuid: 1a2b3c4d5e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Status (up targets)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(up%7Bjob%3D%22kubernetes-pods%22%2Cnamespace%3D~%22{#NSNAME}%22%7D)%20by%20(namespace)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      var v = 0;
-                      body.data.result.forEach(function (r) { if (parseFloat(r.value[1]) > 0) { v++; } });
-                      return v;
-              triggers:
-                - uuid: 2a2b3c4d5e6f6f708192a3b4c5d6e7f0
-                  expression: 'max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER}m)=0'
-                  name: 'Namespace {#NSNAME}: sem targets up (down)'
-                  priority: WARNING
-                  description: 'Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER} minutos.'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: availability
+      sem necessidade de Zabbix agent.
+
+
+      A LLD descobre namespaces via query `up` (job kubernetes-pods) ou usa uma lista
+      estatica
+
+      definida em {$THANOS.NAMESPACES}. Os templates dependentes agregam recursos,
+      pods,
+
+      rede, quota e HPA por namespace.
+
+
+      Requer Zabbix Server/Proxy >= 6.0 e conectividade HTTP(S) do Zabbix ate o Thanos
+      Querier.
+
+      '
+    vendor: Internal
+    groups:
+    - name: Templates
+    macros:
+    - macro: '{$THANOS.URL}'
+      value: https://thanos-querier-openshift-monitoring.apps.cluster.example
+      description: URL base do Thanos Query/Querier (sem barra final).
+    - macro: '{$THANOS.TOKEN}'
+      type: SECRET_TEXT
+      description: Bearer token de service account com permissao de leitura das metricas.
+    - macro: '{$THANOS.NAMESPACES}'
+      value: ''
+      description: Lista estatica de namespaces separados por virgula (regex). Vazio
+        = descobrir via query `up`.
+    - macro: '{$THANOS.STEP}'
+      value: 60s
+      description: Step das queries PromQL (range/vector).
+    - macro: '{$THANOS.TIMEOUT}'
+      value: '15'
+      description: Timeout (s) das requisicoes HTTP.
+    - macro: '{$THANOS.RETRIES}'
+      value: '2'
+      description: Tentativas extras em caso de falha.
+    - macro: '{$THANOS.HTTP_PROXY}'
+      value: ''
+      description: 'Proxy HTTP opcional (ex.: http://proxy:8080).'
+    - macro: '{$THANOS.PROXY_DNS}'
+      value: '0'
+      description: Usar proxy para hostnames (1=sim, 0=nao).
+    - macro: '{$THANOS.VERIFY_HOST}'
+      value: '1'
+      description: Validar host/SSL do endpoint (1=sim, 0=nao).
+    - macro: '{$THANOS.STATUS_NS_TRIGGER}'
+      value: '3'
+      description: Ciclos com namespace down antes do trigger.
+    - macro: '{$THANOS.CPU_LIMIT_PCT}'
+      value: '90'
+      description: Percentual do limite de CPU por namespace para trigger.
+    - macro: '{$THANOS.MEM_LIMIT_PCT}'
+      value: '90'
+      description: Percentual do limite de memoria por namespace para trigger.
+    - macro: '{$THANOS.EPS_P95}'
+      value: '500'
+      description: Requisicoes/s p95 por namespace (informativo).
+    - macro: '{$THANOS.EPS_MAX}'
+      value: '1000'
+      description: Requisicoes/s maximo por namespace para trigger.
+    - macro: '{$THANOS.HPA_MIN_PCT}'
+      value: '90'
+      description: Percentual do minimo de replicas HPA para trigger.
+    - macro: '{$THANOS.HPA_MAX_PCT}'
+      value: '90'
+      description: Percentual do maximo de replicas HPA para trigger.
+    - macro: '{$THANOS.NS_CPU_LIMIT}'
+      value: '0'
+      description: 'Filtro LLD: ResourceQuota de CPU >= valor (cores). 0 = todos.'
+    - macro: '{$THANOS.NS_MEM_LIMIT_GT}'
+      value: '0'
+      description: 'Filtro LLD: ResourceQuota de memoria >= valor (bytes). 0 = todos.'
+    items:
+    - uuid: 7a1b2c3d4e5f6f708192a3b4c5d6e7f0
+      key: thanos.thanos_api_status_do_servico
+      name: 'Thanos API: Status do servico'
+      type: HTTP_AGENT
+      value_type: CHAR
+      history: 7d
+      trends: '0'
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=up%7Bjob%3D%22kubernetes-pods%22%7D'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}s'
+      retry_on_fail: 'YES'
+      retry_attempt: '{$THANOS.RETRIES}'
+      retry_interval: 5s
       tags:
-        - tag: class
-          value: software
-        - tag: target
-          value: openshift
-        - tag: target
-          value: thanos
+      - tag: component
+        value: health
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos\
+          \ API status: ' + body.status; }\nvar ns = {};\nvar total = 0;\nvar up =\
+          \ 0;\nbody.data.result.forEach(function (r) {\n  total++;\n  if (parseFloat(r.value[1])\
+          \ > 0) { up++; }\n  var n = r.metric.namespace;\n  if (n) { ns[n] = 1; }\n\
+          });\nreturn JSON.stringify({ 'status': 'success', 'targets_total': total,\
+          \ 'targets_up': up, 'targets_down': total - up, 'namespaces': Object.keys(ns).sort()\
+          \ });\n"
+      triggers:
+      - uuid: 8a1b2c3d4e5f6f708192a3b4c5d6e7f0
+        expression: find(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,1m,"regexp","[Ff][Aa][Ll][Hh][Aa]|[Dd][Oo][Ww][Nn]")=1
+        name: 'Thanos API: servico indisponivel'
+        opdata: 'Thanos API: {ITEM.LASTVALUE1}'
+        priority: HIGH
+        description: A coleta do status do Thanos API falhou ou retornou servico down.
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    discovery_rules:
+    - uuid: 9a1b2c3d4e5f6f708192a3b4c5d6e7f0
+      key: thanos.discovery.descoberta_de_namespaces
+      name: Descoberta de namespaces
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=up%7Bjob%3D%22kubernetes-pods%22%7D'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}s'
+      retry_on_fail: 'YES'
+      retry_attempt: '{$THANOS.RETRIES}'
+      retry_interval: 5s
+      delay: 1h
+      lifetime: 30d
+      description: Descobre namespaces alvo via query `up`; usa {$THANOS.NAMESPACES}
+        se definido.
+      lld_macros:
+      - macro: '{#NSNAME}'
+      - macro: '{#NSCPUQUOTA}'
+      - macro: '{#NSMEMQUOTA}'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var STATIC = '{$THANOS.NAMESPACES}';\nvar CPU_MIN = parseFloat('{$THANOS.NS_CPU_LIMIT}')\
+          \ || 0;\nvar MEM_MIN = parseFloat('{$THANOS.NS_MEM_LIMIT_GT}') || 0;\nvar\
+          \ nsSet = {};\nif (STATIC && STATIC.trim() !== '') {\n  STATIC.split(',').forEach(function\
+          \ (s) { nsSet[s.trim()] = { cpu: 0, mem: 0 }; });\n}\nvar body = JSON.parse(value);\n\
+          if (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status;\
+          \ }\nbody.data.result.forEach(function (r) {\n  var n = r.metric.namespace;\n\
+          \  if (n && !nsSet[n]) { nsSet[n] = { cpu: 0, mem: 0 }; }\n});\nbody.data.result.forEach(function\
+          \ (r) {\n  var q = r.metric.quota || '';\n  var m = /(?:cpu=(\\d+(?:\\.\\\
+          d+)?))/.exec(q);\n  if (m) { r._cpu = parseFloat(m[1]); }\n});\nvar rows\
+          \ = [];\nObject.keys(nsSet).sort().forEach(function (n) {\n  rows.push({\n\
+          \    '{#NSNAME}': n,\n    '{#NSCPUQUOTA}': nsSet[n].cpu,\n    '{#NSMEMQUOTA}':\
+          \ nsSet[n].mem\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
+      item_prototypes:
+      - uuid: 1a2b3c4d5e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Status (up targets)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(up%7Bjob%3D%22kubernetes-pods%22%2Cnamespace%3D~%22{#NSNAME}%22%7D)%20by%20(namespace)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
 
-    - uuid: 1f1b2c3d4e6f6f708192a3b4c5d6e7f0
-      template: OpenShift Thanos API by JS Resource Limits
-      name: 'OpenShift Thanos API by JS Resource Limits'
-      description: |
-        Coleta por namespace (descoberto pelo template master):
-        - CPU/Memoria usada e % do limite (container)
-        - CPU/Memoria por Request (informativo)
-        - Limites de ResourceQuota do namespace
-      vendor: Internal
-      groups:
-        - name: Templates
-      items:
-        - uuid: 4f1b2c3d4e6f6f708192a3b4c5d6e7f0
-          key: thanos.thanos_api_item_de_suporte_nao_usado
-          name: 'Thanos API: Item de suporte (nao usado)'
-          type: HTTP_AGENT
-          value_type: CHAR
-          history: '0'
-          trends: '0'
-          request_method: GET
-          url: '{$THANOS.URL}/api/v1/query?query=vector(1)'
-          headers:
-            - name: Authorization
-              value: 'Bearer {$THANOS.TOKEN}'
-          timeout: '{$THANOS.TIMEOUT}s'
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - 'return 1;'
-      discovery_rules:
-        - uuid: 1a1b2c3d4e6f6f708192a3b4c5d6e7f0
-          key: thanos.discovery.namespace_nsname_recursos
-          name: 'Namespace {#NSNAME}: Recursos'
-          type: HTTP_AGENT
-          request_method: GET
-          url: '{$THANOS.URL}/api/v1/query?query=kube_pod_container_resource_requests%7Bresource%3D%22cpu%22%7D'
-          headers:
-            - name: Authorization
-              value: 'Bearer {$THANOS.TOKEN}'
-          timeout: '{$THANOS.TIMEOUT}s'
-          delay: 5m
-          lifetime: 30d
-          description: 'Item de suporte para manter a LLD de recursos (dependente do master).'
-          lld_macros:
-            - macro: '{#NSNAME}'
-          item_prototypes:
-            - uuid: 2a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_cpu_usada_millicores[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: CPU usada (millicores)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: m
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=sum(namespace_workload_pod%3Akube_pod_owner%3Arelabel)%20*%200%20%2B%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? (parseFloat(body.data.result[0].value[1]) * 1000) : 0;
-            - uuid: 3a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_memoria_usada_bytes[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Memoria usada (bytes)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: B
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=sum(container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-            - uuid: 4a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_cpu_do_limite[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: CPU % do limite'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '%'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))%20%2F%20sum(kube_pod_container_resource_limits%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22cpu%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var num = parseFloat(body.data.result[0].value[1]) * 100;
-                      return isNaN(num) ? 0 : num;
-              triggers:
-                - uuid: 5a1b2c3d4e6f6f708192a3b4c5d6e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}'
-                  name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
-                  priority: WARNING
-                  description: 'Consumo de CPU do namespace {#NSNAME} acima do percentual configurado do limite (throttling provavel).'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: performance
-            - uuid: 6a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_memoria_do_limite[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Memoria % do limite'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '%'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D)%20%2F%20sum(kube_pod_container_resource_limits%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22memory%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var num = parseFloat(body.data.result[0].value[1]) * 100;
-                      return isNaN(num) ? 0 : num;
-              triggers:
-                - uuid: 7a1b2c3d4e6f6f708192a3b4c5d6e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}'
-                  name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do limite'
-                  priority: WARNING
-                  description: 'Consumo de memoria do namespace {#NSNAME} proximo do limite (risco de OOMKill).'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: performance
-            - uuid: 8a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_cpu_do_request[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: CPU % do Request'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '%'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))%20%2F%20sum(kube_pod_container_resource_requests%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22cpu%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var num = parseFloat(body.data.result[0].value[1]) * 100;
-                      return isNaN(num) ? 0 : num;
-            - uuid: 9a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_memoria_do_request[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Memoria % do Request'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '%'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D)%20%2F%20sum(kube_pod_container_resource_requests%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22memory%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var num = parseFloat(body.data.result[0].value[1]) * 100;
-                      return isNaN(num) ? 0 : num;
-            - uuid: 0a1b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_quota_de_cpu_cores[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Quota de CPU (cores)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '!'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=kube_resourcequota%7Bnamespace%3D%22{#NSNAME}%22%2Cresource%3D%22limits.cpu%22%2Ctype%3D%22hard%22%7D'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-            - uuid: 1a0b2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_quota_de_memoria_bytes[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Quota de memoria (bytes)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: B
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=kube_resourcequota%7Bnamespace%3D%22{#NSNAME}%22%2Cresource%3D%22limits.memory%22%2Ctype%3D%22hard%22%7D'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
 
-    - uuid: 2f1b2c3d4e6f6f708192a3b4c5d6e7f0
-      template: OpenShift Thanos API by JS Pods
-      name: 'OpenShift Thanos API by JS Pods'
-      description: |
-        Coleta por namespace (descoberto pelo template master):
-        - Pods por fase (Running, Pending, Failed, Unknown)
-        - Pods nao-Running
-        - Restart de containers (por hora)
-      vendor: Internal
-      groups:
-        - name: Templates
-      discovery_rules:
-        - uuid: 3a1b2c3d4e6f6f708192a3b40016e7f0
-          key: thanos.discovery.namespace_nsname_pods
-          name: 'Namespace {#NSNAME}: Pods'
-          type: HTTP_AGENT
-          request_method: GET
-          url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
-          headers:
-            - name: Authorization
-              value: 'Bearer {$THANOS.TOKEN}'
-          timeout: '{$THANOS.TIMEOUT}s'
-          delay: 5m
-          lifetime: 30d
-          description: 'Item de suporte para manter a LLD (dependente do master).'
-          lld_macros:
-            - macro: '{#NSNAME}'
-          item_prototypes:
-            - uuid: 4a1b2c3d4e6f6f708192a3b40016e7f0
-              key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Pods rodando'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Running%22%7D%20%3D%3D%201)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-            - uuid: 5a1b2c3d4e6f6f708192a3b40016e7f0
-              key: thanos.namespace_nsname_pods_pendentes[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Pods pendentes'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Pending%22%7D%20%3D%3D%201)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-              triggers:
-                - uuid: 6a1b2c3d4e6f6f708192a3b40016e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0'
-                  name: 'Namespace {#NSNAME}: pods pendentes'
-                  priority: AVERAGE
-                  description: 'Existem pods em fase Pending no namespace {#NSNAME} (possivel falta de recursos).'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: capacity
-            - uuid: 7a1b2c3d4e6f6f708192a3b40016e7f0
-              key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Pods com falha'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Failed%22%7D%20%3D%3D%201)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-            - uuid: 8a1b2c3d4e6f6f708192a3b40016e7f0
-              key: thanos.namespace_nsname_pods_desconhecidos[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Pods desconhecidos'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Unknown%22%7D%20%3D%3D%201)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-            - uuid: 9a1b2c3d4e6f6f708192a3b40016e7f0
-              key: thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Pods nao rodando'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_info%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20-%20count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Running%22%7D%20%3D%3D%201)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;
-              triggers:
-                - uuid: 0a1b2c3d4e6f6f708192a3b40016e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0'
-                  name: 'Namespace {#NSNAME}: pods nao rodando'
-                  priority: AVERAGE
-                  description: 'Existem pods nao-Running (Pending/Failed/Unknown) no namespace {#NSNAME}.'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: availability
-            - uuid: 1a1a2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Restarts de containers (1h)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '!/h'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=sum(increase(kube_pod_container_status_restarts_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B1h%5D))'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-              triggers:
-                - uuid: 2a1a2c3d4e6f6f708192a3b4c5d6e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0'
-                  name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
-                  priority: WARNING
-                  description: 'Contadores de restart aumentaram no namespace {#NSNAME} (crashloops, OOM, probes).'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: performance
+            var v = 0;
 
-    - uuid: 3f1b2c3d4e6f6f708192a3b4c5d6e7f0
-      template: OpenShift Thanos API by JS Network/HPA
-      name: 'OpenShift Thanos API by JS Network/HPA'
-      description: |
-        Coleta por namespace (descoberto pelo template master):
-        - Trafego de rede (RX/TX)
-        - Alertas Prometheus firing
-        - Taxa de requisicoes ao apiserver
-        - HPA: replicas atual/min/max e util.
-      vendor: Internal
-      groups:
-        - name: Templates
-      discovery_rules:
-        - uuid: 4a1b2c3d4e6f6f708192a3b40026e7f0
-          key: thanos.discovery.namespace_nsname_rede_hpa
-          name: 'Namespace {#NSNAME}: Rede/HPA'
-          type: HTTP_AGENT
-          request_method: GET
-          url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
-          headers:
-            - name: Authorization
-              value: 'Bearer {$THANOS.TOKEN}'
-          timeout: '{$THANOS.TIMEOUT}s'
-          delay: 5m
-          lifetime: 30d
-          description: 'Item de suporte para manter a LLD (dependente do master).'
-          lld_macros:
-            - macro: '{#NSNAME}'
-          item_prototypes:
-            - uuid: 5a1b2c3d4e6f6f708192a3b40026e7f0
-              key: thanos.namespace_nsname_rede_rx[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Rede RX'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: bps
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_network_receive_bytes_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-            - uuid: 6a1b2c3d4e6f6f708192a3b40026e7f0
-              key: thanos.namespace_nsname_rede_tx[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Rede TX'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: bps
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_network_transmit_bytes_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-            - uuid: 7a1b2c3d4e6f6f708192a3b40026e7f0
-              key: thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Alertas Prometheus firing'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=count(ALERTS%7Bnamespace%3D~%22{#NSNAME}%22%2Calertstate%3D%22firing%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-              triggers:
-                - uuid: 8a1b2c3d4e6f6f708192a3b40026e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0'
-                  name: 'Namespace {#NSNAME}: alertas Prometheus firing'
-                  priority: WARNING
-                  description: 'Existem regras de alerta Prometheus em estado firing para o namespace {#NSNAME}.'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: notice
-            - uuid: 9a1b2c3d4e6f6f708192a3b40026e7f0
-              key: thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: Requisicoes ao apiserver'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: rps
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=sum(rate(apiserver_request_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-              triggers:
-                - uuid: 0a1b2c3d4e6f6f708192a3b40026e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}'
-                  name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
-                  priority: WARNING
-                  description: 'Taxa de requisicoes (por namespace do cliente) acima de {$THANOS.EPS_MAX} rps.'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: performance
-            - uuid: 1a0a2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_hpa_replicas_atuais[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: HPA replicas atuais'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-            - uuid: 2a0a2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_hpa_replicas_desejadas[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: HPA replicas desejadas'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_status_desired_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-            - uuid: 3a0a2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_hpa_minimo_de_replicas[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: HPA minimo de replicas'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=min(kube_horizontalpodautoscaler_spec_min_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-            - uuid: 4a0a2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_hpa_maximo_de_replicas[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: HPA maximo de replicas'
-              type: HTTP_AGENT
-              value_type: UNSIGNED
-              history: '7d'
-              trends: 30d
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_spec_max_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]);
-                      return isNaN(v) ? 0 : v;
-            - uuid: 5a0a2c3d4e6f6f708192a3b4c5d6e7f0
-              key: thanos.namespace_nsname_hpa_util[{#NSNAME}]
-              name: 'Namespace {#NSNAME}: HPA util. (%)'
-              type: HTTP_AGENT
-              value_type: FLOAT
-              history: '7d'
-              trends: 30d
-              units: '%'
-              request_method: GET
-              url: '{$THANOS.URL}/api/v1/query?query=100%20*%20max(kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20%2F%20min(kube_horizontalpodautoscaler_spec_max_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-              headers:
-                - name: Authorization
-                  value: 'Bearer {$THANOS.TOKEN}'
-              timeout: '{$THANOS.TIMEOUT}s'
-              preprocessing:
-                - type: JAVASCRIPT
-                  parameters:
-                    - |
-                      var body = JSON.parse(value);
-                      if (body.status !== 'success') { throw 'Thanos API: ' + body.status; }
-                      if (!(body.data.result && body.data.result.length)) { return 0; }
-                      var v = parseFloat(body.data.result[0].value[1]) * 100;
-                      return isNaN(v) ? 0 : v;
-              triggers:
-                - uuid: 6a0a2c3d4e6f6f708192a3b4c5d6e7f0
-                  expression: 'min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}'
-                  name: 'Namespace {#NSNAME}: HPA saturado'
-                  priority: WARNING
-                  description: 'Replicas atuais >= {$THANOS.HPA_MAX_PCT}% do maximo (risco de saturacao).'
-                  manual_close: 'YES'
-                  tags:
-                    - tag: namespace
-                      value: '{#NSNAME}'
-                    - tag: scope
-                      value: capacity
+            body.data.result.forEach(function (r) { if (parseFloat(r.value[1]) > 0)
+            { v++; } });
 
-  value_maps:
+            return v;
+
+            '
+        triggers:
+        - uuid: 2a2b3c4d5e6f6f708192a3b4c5d6e7f0
+          expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER}m)=0
+          name: 'Namespace {#NSNAME}: sem targets up (down)'
+          priority: WARNING
+          description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
+            minutos.
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: availability
+    tags:
+    - tag: class
+      value: software
+    - tag: target
+      value: openshift
+    - tag: target
+      value: thanos
+    valuemaps:
     - uuid: 7f1b2c3d4e6f6f708192a3b4c5d6e7f0
-      name: 'Thanos API status'
+      name: Thanos API status
       mappings:
-        - value: 'OK'
-          newvalue: 'Servico OK'
-        - value: 'FALHA'
-          newvalue: 'Servico FALHA'
+      - value: OK
+        newvalue: Servico OK
+      - value: FALHA
+        newvalue: Servico FALHA
+  - uuid: 1f1b2c3d4e6f6f708192a3b4c5d6e7f0
+    template: OpenShift Thanos API by JS Resource Limits
+    name: OpenShift Thanos API by JS Resource Limits
+    description: 'Coleta por namespace (descoberto pelo template master):
+
+      - CPU/Memoria usada e % do limite (container)
+
+      - CPU/Memoria por Request (informativo)
+
+      - Limites de ResourceQuota do namespace
+
+      '
+    vendor: Internal
+    groups:
+    - name: Templates
+    items:
+    - uuid: 4f1b2c3d4e6f6f708192a3b4c5d6e7f0
+      key: thanos.thanos_api_item_de_suporte_nao_usado
+      name: 'Thanos API: Item de suporte (nao usado)'
+      type: HTTP_AGENT
+      value_type: CHAR
+      history: '0'
+      trends: '0'
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=vector(1)'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}s'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - return 1;
+    discovery_rules:
+    - uuid: 1a1b2c3d4e6f6f708192a3b4c5d6e7f0
+      key: thanos.discovery.namespace_nsname_recursos
+      name: 'Namespace {#NSNAME}: Recursos'
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_container_resource_requests%7Bresource%3D%22cpu%22%7D'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}s'
+      delay: 5m
+      lifetime: 30d
+      description: Item de suporte para manter a LLD de recursos (dependente do master).
+      lld_macros:
+      - macro: '{#NSNAME}'
+      item_prototypes:
+      - uuid: 2a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_cpu_usada_millicores[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: CPU usada (millicores)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: m
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(namespace_workload_pod%3Akube_pod_owner%3Arelabel)%20*%200%20%2B%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? (parseFloat(body.data.result[0].value[1])
+            * 1000) : 0;
+
+            '
+      - uuid: 3a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_memoria_usada_bytes[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Memoria usada (bytes)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: B
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+      - uuid: 4a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_cpu_do_limite[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: CPU % do limite'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '%'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))%20%2F%20sum(kube_pod_container_resource_limits%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22cpu%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var num = parseFloat(body.data.result[0].value[1]) * 100;
+
+            return isNaN(num) ? 0 : num;
+
+            '
+        triggers:
+        - uuid: 5a1b2c3d4e6f6f708192a3b4c5d6e7f0
+          expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
+          name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
+          priority: WARNING
+          description: Consumo de CPU do namespace {#NSNAME} acima do percentual configurado
+            do limite (throttling provavel).
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: performance
+      - uuid: 6a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_memoria_do_limite[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Memoria % do limite'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '%'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D)%20%2F%20sum(kube_pod_container_resource_limits%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22memory%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var num = parseFloat(body.data.result[0].value[1]) * 100;
+
+            return isNaN(num) ? 0 : num;
+
+            '
+        triggers:
+        - uuid: 7a1b2c3d4e6f6f708192a3b4c5d6e7f0
+          expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
+          name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do
+            limite'
+          priority: WARNING
+          description: Consumo de memoria do namespace {#NSNAME} proximo do limite
+            (risco de OOMKill).
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: performance
+      - uuid: 8a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_cpu_do_request[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: CPU % do Request'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '%'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))%20%2F%20sum(kube_pod_container_resource_requests%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22cpu%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var num = parseFloat(body.data.result[0].value[1]) * 100;
+
+            return isNaN(num) ? 0 : num;
+
+            '
+      - uuid: 9a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_memoria_do_request[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Memoria % do Request'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '%'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D)%20%2F%20sum(kube_pod_container_resource_requests%7Bnamespace%3D~%22{#NSNAME}%22%2Cresource%3D%22memory%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var num = parseFloat(body.data.result[0].value[1]) * 100;
+
+            return isNaN(num) ? 0 : num;
+
+            '
+      - uuid: 0a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_quota_de_cpu_cores[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Quota de CPU (cores)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '!'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=kube_resourcequota%7Bnamespace%3D%22{#NSNAME}%22%2Cresource%3D%22limits.cpu%22%2Ctype%3D%22hard%22%7D'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+      - uuid: 1a0b2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_quota_de_memoria_bytes[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Quota de memoria (bytes)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: B
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=kube_resourcequota%7Bnamespace%3D%22{#NSNAME}%22%2Cresource%3D%22limits.memory%22%2Ctype%3D%22hard%22%7D'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+  - uuid: 2f1b2c3d4e6f6f708192a3b4c5d6e7f0
+    template: OpenShift Thanos API by JS Pods
+    name: OpenShift Thanos API by JS Pods
+    description: 'Coleta por namespace (descoberto pelo template master):
+
+      - Pods por fase (Running, Pending, Failed, Unknown)
+
+      - Pods nao-Running
+
+      - Restart de containers (por hora)
+
+      '
+    vendor: Internal
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: 3a1b2c3d4e6f6f708192a3b40016e7f0
+      key: thanos.discovery.namespace_nsname_pods
+      name: 'Namespace {#NSNAME}: Pods'
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}s'
+      delay: 5m
+      lifetime: 30d
+      description: Item de suporte para manter a LLD (dependente do master).
+      lld_macros:
+      - macro: '{#NSNAME}'
+      item_prototypes:
+      - uuid: 4a1b2c3d4e6f6f708192a3b40016e7f0
+        key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Pods rodando'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Running%22%7D%20%3D%3D%201)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+      - uuid: 5a1b2c3d4e6f6f708192a3b40016e7f0
+        key: thanos.namespace_nsname_pods_pendentes[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Pods pendentes'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Pending%22%7D%20%3D%3D%201)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+        triggers:
+        - uuid: 6a1b2c3d4e6f6f708192a3b40016e7f0
+          expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0
+          name: 'Namespace {#NSNAME}: pods pendentes'
+          priority: AVERAGE
+          description: Existem pods em fase Pending no namespace {#NSNAME} (possivel
+            falta de recursos).
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: capacity
+      - uuid: 7a1b2c3d4e6f6f708192a3b40016e7f0
+        key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Pods com falha'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Failed%22%7D%20%3D%3D%201)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+      - uuid: 8a1b2c3d4e6f6f708192a3b40016e7f0
+        key: thanos.namespace_nsname_pods_desconhecidos[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Pods desconhecidos'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Unknown%22%7D%20%3D%3D%201)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+      - uuid: 9a1b2c3d4e6f6f708192a3b40016e7f0
+        key: thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Pods nao rodando'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_info%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20-%20count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Running%22%7D%20%3D%3D%201)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
+            : 0;
+
+            '
+        triggers:
+        - uuid: 0a1b2c3d4e6f6f708192a3b40016e7f0
+          expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0
+          name: 'Namespace {#NSNAME}: pods nao rodando'
+          priority: AVERAGE
+          description: Existem pods nao-Running (Pending/Failed/Unknown) no namespace
+            {#NSNAME}.
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: availability
+      - uuid: 1a1a2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Restarts de containers (1h)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '!/h'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(increase(kube_pod_container_status_restarts_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B1h%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+        triggers:
+        - uuid: 2a1a2c3d4e6f6f708192a3b4c5d6e7f0
+          expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
+          name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
+          priority: WARNING
+          description: Contadores de restart aumentaram no namespace {#NSNAME} (crashloops,
+            OOM, probes).
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: performance
+  - uuid: 3f1b2c3d4e6f6f708192a3b4c5d6e7f0
+    template: OpenShift Thanos API by JS Network/HPA
+    name: OpenShift Thanos API by JS Network/HPA
+    description: 'Coleta por namespace (descoberto pelo template master):
+
+      - Trafego de rede (RX/TX)
+
+      - Alertas Prometheus firing
+
+      - Taxa de requisicoes ao apiserver
+
+      - HPA: replicas atual/min/max e util.
+
+      '
+    vendor: Internal
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: 4a1b2c3d4e6f6f708192a3b40026e7f0
+      key: thanos.discovery.namespace_nsname_rede_hpa
+      name: 'Namespace {#NSNAME}: Rede/HPA'
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}s'
+      delay: 5m
+      lifetime: 30d
+      description: Item de suporte para manter a LLD (dependente do master).
+      lld_macros:
+      - macro: '{#NSNAME}'
+      item_prototypes:
+      - uuid: 5a1b2c3d4e6f6f708192a3b40026e7f0
+        key: thanos.namespace_nsname_rede_rx[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Rede RX'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: bps
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_network_receive_bytes_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+      - uuid: 6a1b2c3d4e6f6f708192a3b40026e7f0
+        key: thanos.namespace_nsname_rede_tx[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Rede TX'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: bps
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_network_transmit_bytes_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+      - uuid: 7a1b2c3d4e6f6f708192a3b40026e7f0
+        key: thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Alertas Prometheus firing'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=count(ALERTS%7Bnamespace%3D~%22{#NSNAME}%22%2Calertstate%3D%22firing%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+        triggers:
+        - uuid: 8a1b2c3d4e6f6f708192a3b40026e7f0
+          expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
+          name: 'Namespace {#NSNAME}: alertas Prometheus firing'
+          priority: WARNING
+          description: Existem regras de alerta Prometheus em estado firing para o
+            namespace {#NSNAME}.
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: notice
+      - uuid: 9a1b2c3d4e6f6f708192a3b40026e7f0
+        key: thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Requisicoes ao apiserver'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: rps
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(apiserver_request_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+        triggers:
+        - uuid: 0a1b2c3d4e6f6f708192a3b40026e7f0
+          expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
+          name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
+          priority: WARNING
+          description: Taxa de requisicoes (por namespace do cliente) acima de {$THANOS.EPS_MAX}
+            rps.
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: performance
+      - uuid: 1a0a2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_hpa_replicas_atuais[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: HPA replicas atuais'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+      - uuid: 2a0a2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_hpa_replicas_desejadas[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: HPA replicas desejadas'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_status_desired_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+      - uuid: 3a0a2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_hpa_minimo_de_replicas[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: HPA minimo de replicas'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=min(kube_horizontalpodautoscaler_spec_min_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+      - uuid: 4a0a2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_hpa_maximo_de_replicas[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: HPA maximo de replicas'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 7d
+        trends: 30d
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_spec_max_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]);
+
+            return isNaN(v) ? 0 : v;
+
+            '
+      - uuid: 5a0a2c3d4e6f6f708192a3b4c5d6e7f0
+        key: thanos.namespace_nsname_hpa_util[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: HPA util. (%)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 7d
+        trends: 30d
+        units: '%'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20max(kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20%2F%20min(kube_horizontalpodautoscaler_spec_max_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}s'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
+            }
+
+            if (!(body.data.result && body.data.result.length)) { return 0; }
+
+            var v = parseFloat(body.data.result[0].value[1]) * 100;
+
+            return isNaN(v) ? 0 : v;
+
+            '
+        triggers:
+        - uuid: 6a0a2c3d4e6f6f708192a3b4c5d6e7f0
+          expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
+          name: 'Namespace {#NSNAME}: HPA saturado'
+          priority: WARNING
+          description: Replicas atuais >= {$THANOS.HPA_MAX_PCT}% do maximo (risco
+            de saturacao).
+          manual_close: 'YES'
+          tags:
+          - tag: namespace
+            value: '{#NSNAME}'
+          - tag: scope
+            value: capacity
