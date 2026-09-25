@@ -3,7 +3,9 @@ zabbix_export:
   date: '2026-09-25T00:00:00Z'
   groups:
   - name: Templates
+    uuid: b8f0b2c3d4e6f6f708192a3b4c5d6e7f0
   - name: Templates/applications
+    uuid: b7f0b2c3d4e6f6f708192a3b4c5d6e7f0
   templates:
   - uuid: 6f1a2b3c4d5e6f708192a3b4c5d6e7f0
     template: OpenShift Thanos API by JS
@@ -33,6 +35,7 @@ zabbix_export:
     vendor: Internal
     groups:
     - name: Templates
+      uuid: c0ffee000001d4e6f6f708192a3b4c5d
     macros:
     - macro: '{$THANOS.URL}'
       value: https://thanos-querier-openshift-monitoring.apps.cluster.example
@@ -240,6 +243,7 @@ zabbix_export:
     vendor: Internal
     groups:
     - name: Templates
+      uuid: c0ffee000002d4e6f6f708192a3b4c5d
     items:
     - uuid: 4f1b2c3d4e6f6f708192a3b4c5d6e7f0
       key: thanos.thanos_api_item_de_suporte_nao_usado
@@ -537,6 +541,7 @@ zabbix_export:
     vendor: Internal
     groups:
     - name: Templates
+      uuid: c0ffee000003d4e6f6f708192a3b4c5d
     discovery_rules:
     - uuid: 3a1b2c3d4e6f6f708192a3b40016e7f0
       key: thanos.discovery.namespace_nsname_pods
@@ -764,6 +769,7 @@ zabbix_export:
     vendor: Internal
     groups:
     - name: Templates
+      uuid: c0ffee000004d4e6f6f708192a3b4c5d
     discovery_rules:
     - uuid: 4a1b2c3d4e6f6f708192a3b40026e7f0
       key: thanos.discovery.namespace_nsname_rede_hpa
