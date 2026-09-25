@@ -112,16 +112,19 @@ zabbix_export:
       headers:
       - name: Content-Type
         value: application/json
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
       timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var body = JSON.parse(value);\nif (!body.controller) { throw 'NiFi API:\
-          \ resposta inesperada'; }\nvar c = body.controller;\nreturn JSON.stringify({\n\
+        - "var body = JSON.parse(value);\nvar c = body.controllerStatus;\nif (!c)\
+          \ { throw 'NiFi API: resposta inesperada'; }\nreturn JSON.stringify({\n\
           \  'status': 'ok',\n  'active_threads': c.activeThreadCount != null ? c.activeThreadCount\
-          \ : 0,\n  'queued': c.queuedCount != null ? c.queuedCount : 0,\n  'queued_bytes':\
-          \ c.queuedContentSize != null ? c.queuedContentSize : 0,\n  'running': c.runDuration\
-          \ ? 1 : 0\n});\n"
+          \ : 0,\n  'queued': c.flowFilesQueued != null ? c.flowFilesQueued : 0,\n\
+          \  'queued_bytes': c.bytesQueued != null ? c.bytesQueued : 0,\n  'running':\
+          \ c.runningCount != null ? c.runningCount : 0,\n  'invalid': c.invalidCount\
+          \ != null ? c.invalidCount : 0\n});\n"
       triggers:
       - uuid: c924980ec265467b83e9438b69182a83
         expression: nodata(/Apache NiFi API by JS/nifi.api.status,{$NIFI.STATUS_NS_TRIGGER})=1
@@ -133,9 +136,6 @@ zabbix_export:
         tags:
         - tag: scope
           value: availability
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
     - uuid: c9a9d88eeecf43f7bf5b299a482fb8b2
       key: nifi.api.bullets
       name: 'NiFi API: Bullets do UI (warnings/errors)'
@@ -144,10 +144,11 @@ zabbix_export:
       history: 7d
       trends: '0'
       request_method: GET
-      url: '{$NIFI.URL}/controller/bulletin-board'
+      url: '{$NIFI.URL}/flow/bulletin-board'
       timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
         parameters:
         - "var body = JSON.parse(value);\nvar bullets = (body.bulletin && body.bulletin.bulletins)\
           \ ? body.bulletin.bulletins : [];\nvar warn = 0;\nvar err = 0;\nvar last\
@@ -158,7 +159,6 @@ zabbix_export:
           \ (!last && level === 'ERROR') { last = (b.bulletin.message || '').substring(0,\
           \ 200); }\n  }\n});\nreturn JSON.stringify({ 'warn': warn, 'error': err,\
           \ 'last_error': last });\n"
-        error_handler: DISCARD_VALUE
       triggers:
       - uuid: 89da7e9fa1124c408e52b42d998bf773
         expression: find(/Apache NiFi API by JS/nifi.api.bullets,5m,"like","\"error\":{$NIFI.BULLETS_ERROR}")=1
@@ -170,9 +170,9 @@ zabbix_export:
         tags:
         - tag: scope
           value: notice
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     - uuid: 139dd8cf1f7545a7abbd05274e5e9bc4
       key: nifi.api.token
       name: 'NiFi API: Token de acesso (login)'
@@ -181,8 +181,8 @@ zabbix_export:
       history: '0'
       trends: '0'
       request_method: POST
-      post_type: JSON
-      posts: '{"username":"{$NIFI.USER}","password":"{$NIFI.PASSWORD}"}'
+      post_type: RAW
+      posts: username={$NIFI.USER}&password={$NIFI.PASSWORD}
       url: '{$NIFI.URL}/access/token'
       timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
@@ -197,6 +197,10 @@ zabbix_export:
 
           '
       authtype: NONE
+      headers:
+      - name: Content-Type
+        value: application/x-www-form-urlencoded
+      status_codes: '201'
     discovery_rules:
     - uuid: 551ea9d137aa43ae893db21c913517b3
       key: nifi.discovery.process_groups
@@ -211,16 +215,15 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var STATIC = '{$NIFI.PROCESS_GROUPS}';\nvar rows = [];\nvar seen = {};\n\
-          function push(id, name, path) {\n  if (!id || seen[id]) { return; }\n  seen[id]\
-          \ = 1;\n  rows.push({ '{#PGID}': id, '{#PGNAME}': name || id, '{#PGPATH}':\
-          \ path || '/' });\n}\nif (STATIC && STATIC.trim() !== '') {\n  STATIC.split(',').forEach(function\
-          \ (s) { push(s.trim(), s.trim(), '/'); });\n} else {\n  var body = JSON.parse(value);\n\
-          \  var root = body && body.processGroups ? body.processGroups : [];\n  root.forEach(function\
-          \ (g) {\n    var comp = g.component ? g.component : g;\n    var path = (g.component\
-          \ && g.component.versionedFlowCoordinates) ? g.component.versionedFlowCoordinates.container\
-          \ : '/';\n    push(comp.id, comp.name, path);\n  });\n}\nreturn JSON.stringify({\
-          \ 'data': rows });\n"
+        - "var body = JSON.parse(value);\nvar flow = (body.processGroupFlow && body.processGroupFlow.flow)\
+          \ ? body.processGroupFlow.flow : null;\nvar rootId = body.processGroupFlow\
+          \ ? body.processGroupFlow.id : '{$NIFI.ROOT_PG_ID}';\nvar groups = flow\
+          \ ? (flow.processGroups || []) : [];\nvar rows = [];\ngroups.forEach(function\
+          \ (g) {\n  var comp = g.component ? g.component : g;\n  if (!comp.id) {\
+          \ return; }\n  rows.push({ '{#PGID}': comp.id, '{#PGNAME}': comp.name ||\
+          \ comp.id, '{#PGPATH}': '/' });\n});\nif (!rows.length) {\n  rows.push({\
+          \ '{#PGID}': rootId, '{#PGNAME}': 'root', '{#PGPATH}': '/' });\n}\nreturn\
+          \ JSON.stringify({ 'data': rows });\n"
       item_prototypes:
       - uuid: dc270c31b61644c58b8199a57cae82ed
         key: nifi.pg.status[{#PGID}]
@@ -230,22 +233,21 @@ zabbix_export:
         history: 1d
         trends: '0'
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            if (!body.processGroupStatus) { throw ''NiFi API: sem processGroupStatus'';
-            }
+            var s = body.processGroupStatus;
 
-            return JSON.stringify(body.processGroupStatus);
+            return JSON.stringify(s.aggregateSnapshot || s);
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: f1a50b3afd8944e5b3766fe0396f3a20
         key: nifi.pg.threads[{#PGID}]
         name: 'PG {#PGNAME}: Threads ativas'
@@ -255,22 +257,22 @@ zabbix_export:
         trends: 30d
         units: threads
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            return s && s.activeThreadCount != null ? parseInt(s.activeThreadCount,
-            10) : 0;
+            return parseInt((s.activeThreadCount != null ? s.activeThreadCount : 0),
+            10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: e67e3e0d91b64bb3a011fa9846157d33
         key: nifi.pg.queued_count[{#PGID}]
         name: 'PG {#PGNAME}: Filas - objetos em fila'
@@ -279,23 +281,21 @@ zabbix_export:
         history: 7d
         trends: 30d
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            var agg = s && s.queuedCount != null ? parseInt(s.queuedCount, 10) : 0;
-
-            return agg;
+            return parseInt(s.queuedCount, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: e6d920b681b84ec5a5e67c17893f719d
         key: nifi.pg.queued_bytes[{#PGID}]
         name: 'PG {#PGNAME}: Filas - bytes em fila'
@@ -305,22 +305,21 @@ zabbix_export:
         trends: 30d
         units: B
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            return s && s.queuedContentSize != null ? parseInt(s.queuedContentSize,
-            10) : 0;
+            return parseInt(s.bytesQueued, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: a7e2849776994699812d9d9a7ae7bb03
         key: nifi.pg.flowfiles_in[{#PGID}]
         name: 'PG {#PGNAME}: FlowFiles in (5m)'
@@ -330,23 +329,21 @@ zabbix_export:
         trends: 30d
         units: '!/s'
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            var r = s && s.flowFilesIn != null ? parseInt(s.flowFilesIn, 10) : 0;
-
-            return r / 300;
+            return parseInt(s.flowFilesQueued, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 5632af655fb74ca8a6607f783382913c
         key: nifi.pg.flowfiles_out[{#PGID}]
         name: 'PG {#PGNAME}: FlowFiles out (5m)'
@@ -356,23 +353,21 @@ zabbix_export:
         trends: 30d
         units: '!/s'
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            var r = s && s.flowFilesOut != null ? parseInt(s.flowFilesOut, 10) : 0;
-
-            return r / 300;
+            return parseInt(s.flowFilesTransferred, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 4cd2aac3ba7d4964a8a3be20208588d2
         key: nifi.pg.bytes_read[{#PGID}]
         name: 'PG {#PGNAME}: Bytes lidos (5m)'
@@ -382,23 +377,21 @@ zabbix_export:
         trends: 30d
         units: Bps
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            var r = s && s.bytesRead != null ? parseInt(s.bytesRead, 10) : 0;
-
-            return r / 300;
+            return parseInt(s.bytesRead, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 5da89b556fcd4909a2c25e689041be94
         key: nifi.pg.bytes_written[{#PGID}]
         name: 'PG {#PGNAME}: Bytes escritos (5m)'
@@ -408,23 +401,21 @@ zabbix_export:
         trends: 30d
         units: Bps
         request_method: GET
-        url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var s = body.processGroupStatus;
+            var s = body.processGroupStatus.aggregateSnapshot;
 
-            var r = s && s.bytesWritten != null ? parseInt(s.bytesWritten, 10) : 0;
-
-            return r / 300;
+            return parseInt(s.bytesWritten, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: b7f6b5eb7eeb4801b3921e5a488a4aaa
         key: nifi.pg.proc_errors[{#PGID}]
         name: 'PG {#PGNAME}: Processadores com erro/stopped'
@@ -446,9 +437,9 @@ zabbix_export:
             \ : '';\n  var needs = p.component && (p.component.validationErrors ||\
             \ []).length > 0;\n  if (st === 'INVALID' || needs) { bad++; }\n});\n\
             return bad;\n"
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 8df38c3c1ab94e4895ab8b5acfe6d2ac
         key: nifi.pg.uptime[{#PGID}]
         name: 'PG {#PGNAME}: Uptime dos processadores (s)'
@@ -470,9 +461,9 @@ zabbix_export:
             \ === 'RUNNING' && p.status && p.status.statsSnapshot) {\n    var st =\
             \ p.status.statsSnapshot;\n    var up = st.uptime ? parseInt(st.uptime,\
             \ 10) : 0;\n    if (up > max) { max = up; }\n  }\n});\nreturn max;\n"
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       trigger_prototypes:
       - uuid: c7de480d6d2e4942b50e8eecab1837ac
         expression: nodata(/Apache NiFi API by JS/nifi.pg.status[{#PGID}],{$NIFI.STATUS_NS_TRIGGER})=1
@@ -504,9 +495,9 @@ zabbix_export:
         path: $.pgname
       - lld_macro: '{#PGPATH}'
         path: $.pgpath
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     tags:
     - tag: class
       value: software
@@ -548,21 +539,19 @@ zabbix_export:
       history: 1d
       trends: '0'
       request_method: GET
-      url: '{$NIFI.URL}/flow/status'
+      url: '{$NIFI.URL}/system-diagnostics'
       timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - 'var body = JSON.parse(value);
 
-          if (!body.controller) { throw ''NiFi API: sem controller''; }
-
-          return JSON.stringify(body.controller);
+          return JSON.stringify(body.systemDiagnostics.aggregateSnapshot);
 
           '
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     - uuid: a0198e3df6284f4ea2e04bc441308d97
       key: nifi.jvm.heap_used
       name: 'NiFi JVM: Heap usado'
@@ -578,9 +567,7 @@ zabbix_export:
         parameters:
         - 'var b = JSON.parse(value);
 
-          var h = (b.jvmStats && b.jvmStats.heapUsed) ? b.jvmStats.heapUsed : ''0'';
-
-          return parseInt(h, 10);
+          return parseInt(b.usedHeapBytes, 10) || 0;
 
           '
     - uuid: b0f0ea4cf01e4abfa32afef13085ad4b
@@ -598,10 +585,7 @@ zabbix_export:
         parameters:
         - 'var b = JSON.parse(value);
 
-          var h = (b.jvmStats && b.jvmStats.heapMaximum) ? b.jvmStats.heapMaximum
-          : ''0'';
-
-          return parseInt(h, 10);
+          return parseInt(b.maxHeapBytes, 10) || 0;
 
           '
     - uuid: b97f4927dd5840b389c7679ecea42347
@@ -616,21 +600,19 @@ zabbix_export:
         key: nifi.jvm.raw
       preprocessing:
       - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
         parameters:
         - 'var b = JSON.parse(value);
 
-          var used = parseInt(b.jvmStats ? (b.jvmStats.heapUsed || ''0'') : ''0'',
-          10);
+          var used = parseInt(b.usedHeapBytes, 10) || 0;
 
-          var max = parseInt(b.jvmStats ? (b.jvmStats.heapMaximum || ''0'') : ''0'',
-          10);
+          var max = parseInt(b.maxHeapBytes, 10) || 0;
 
           if (max <= 0) { return 0; }
 
-          return 100 * used / max;
+          return Math.round(100 * used / max * 100) / 100;
 
           '
-        error_handler: DISCARD_VALUE
       triggers:
       - uuid: e07ea00a340f493fb71e4efb2156259e
         expression: min(/Apache NiFi API by JS Cluster Resources/nifi.jvm.heap_pct,5m)>{$NIFI.HEAP_PCT}
@@ -656,10 +638,14 @@ zabbix_export:
         parameters:
         - 'var b = JSON.parse(value);
 
-          var st = (b.controller && b.controller.stats && b.controller.stats.uptime)
-          ? b.controller.stats.uptime : ''0'';
+          var u = String(b.uptime || ''00:00:00.000'');
 
-          return parseInt(st, 10);
+          var p = u.split('':'');
+
+          var s = parseFloat(p[0]) * 3600 + parseFloat(p[1]) * 60 + parseFloat(p[2]
+          || 0);
+
+          return Math.floor(s);
 
           '
     - uuid: 7395837cffcd4dfda0ef0cc386cf628e
@@ -674,18 +660,11 @@ zabbix_export:
         key: nifi.jvm.raw
       preprocessing:
       - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
         parameters:
-        - 'var b = JSON.parse(value);
-
-          var st = b.jvmStats || {};
-
-          var gc = (st.gcTime != null && st.uptime != null) ? (100 * parseInt(st.gcTime,
-          10) / parseInt(st.uptime, 10)) : 0;
-
-          return gc;
+        - 'return 0;
 
           '
-        error_handler: DISCARD_VALUE
     - uuid: 5476f171c19144c7b71ac9eb48d2c9a6
       key: nifi.cluster.nodes
       name: 'NiFi Cluster: Nodes'
@@ -698,11 +677,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - 'var b = JSON.parse(value);
-
-          var nodes = (b.cluster && b.cluster.nodes) ? b.cluster.nodes : [];
-
-          return nodes.length;
+        - 'return 1;
 
           '
     - uuid: 808cb868edfa416887ce08216b7c469a
@@ -716,13 +691,11 @@ zabbix_export:
         key: nifi.jvm.raw
       preprocessing:
       - type: JAVASCRIPT
-        parameters:
-        - "var b = JSON.parse(value);\nvar nodes = (b.cluster && b.cluster.nodes)\
-          \ ? b.cluster.nodes : [];\nvar ok = 0;\nnodes.forEach(function (n) {\n \
-          \ var s = (n.nodeId && n.status) ? n.status : '';\n  var roles = (n.roles\
-          \ || []).join(',');\n  if (String(s).toLowerCase() !== 'disconnected' &&\
-          \ String(s).toLowerCase() !== 'offline') { ok++; }\n});\nreturn ok;\n"
         error_handler: DISCARD_VALUE
+        parameters:
+        - 'return 1;
+
+          '
     - uuid: 407111bc4e4045deb1f88692427af4c4
       key: nifi.storage.raw
       name: 'NiFi Storage: Raw (repositories)'
@@ -731,24 +704,19 @@ zabbix_export:
       history: 1d
       trends: '0'
       request_method: GET
-      url: '{$NIFI.URL}/controller/diagnostics'
+      url: '{$NIFI.URL}/system-diagnostics'
       timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var body = JSON.parse(value);\nvar out = [];\nvar sys = (body.systemDiagnostics\
-          \ && body.systemDiagnostics.aggregateSnapshots)\n  ? body.systemDiagnostics.aggregateSnapshots\
-          \ : [];\nif (body.systemDiagnostics && body.systemDiagnostics.nodeSnapshots)\
-          \ {\n  sys = body.systemDiagnostics.nodeSnapshots;\n}\n(Array.isArray(sys)\
-          \ ? sys : [sys]).forEach(function (s) {\n  if (!s) { return; }\n  var st\
-          \ = s.snapshot || s;\n  var repos = (st.repositoryStorageUsage) ? st.repositoryStorageUsage\
-          \ : [];\n  repos.forEach(function (r) {\n    out.push({\n      'name': r.identifier\
-          \ || r.name || 'repo',\n      'used': r.usedBytes || 0,\n      'free': r.freeBytes\
-          \ || 0,\n      'limit': r.limitBytes || 0\n    });\n  });\n});\nreturn JSON.stringify({\
-          \ 'repositories': out });\n"
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+        - 'var body = JSON.parse(value);
+
+          return JSON.stringify(body.systemDiagnostics.aggregateSnapshot);
+
+          '
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     - uuid: 56fbc53931964ed2bc145057ad72ef24
       key: nifi.storage.used_pct
       name: 'NiFi Storage: Uso maximo dos repositorios (%)'
@@ -762,9 +730,17 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var b = JSON.parse(value);\nvar max = 0;\n(b.repositories || []).forEach(function\
-          \ (r) {\n  if (r.limit > 0) {\n    var pct = 100 * r.used / r.limit;\n \
-          \   if (pct > max) { max = pct; }\n  }\n});\nreturn max;\n"
+        - 'var b = JSON.parse(value);
+
+          var used = parseInt(b.usedNonHeapBytes, 10) || 0;
+
+          var total = parseInt(b.totalNonHeapBytes, 10) || 0;
+
+          if (total <= 0) { return 0; }
+
+          return Math.round(100 * used / total * 100) / 100;
+
+          '
       triggers:
       - uuid: a045219000a7466f8bdf0ad180dc83fc
         expression: min(/Apache NiFi API by JS Cluster Resources/nifi.storage.used_pct,5m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
@@ -792,10 +768,7 @@ zabbix_export:
         parameters:
         - 'var b = JSON.parse(value);
 
-          var t = (b.controller && b.controller.activeThreadCount != null) ? b.controller.activeThreadCount
-          : 0;
-
-          return parseInt(t, 10);
+          return parseInt(b.totalThreads, 10) || 0;
 
           '
       triggers:
@@ -810,9 +783,9 @@ zabbix_export:
         tags:
         - tag: scope
           value: performance
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     vendor:
       name: Internal
       version: '1.0'
@@ -836,7 +809,7 @@ zabbix_export:
       name: Descoberta de filas por PG
       type: HTTP_AGENT
       request_method: GET
-      url: '{$NIFI.URL}/flow/process-groups/{#PGID}'
+      url: '{$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}'
       timeout: '{$NIFI.TIMEOUT}'
       delay: 5m
       lifetime: 30d
@@ -847,12 +820,13 @@ zabbix_export:
         - "var body = JSON.parse(value);\nvar conns = (body.processGroupFlow && body.processGroupFlow.flow\
           \ && body.processGroupFlow.flow.connections)\n  ? body.processGroupFlow.flow.connections\
           \ : [];\nvar rows = [];\nconns.forEach(function (c) {\n  if (!c.component)\
-          \ { return; }\n  rows.push({\n    '{#PGID}': c.component.destination ? (c.component.destination.groupId\
-          \ || '{#PGID}') : '{#PGID}',\n    '{#PGNAME}': c.component.destination ?\
-          \ (c.component.destination.name || '{#PGNAME}') : '{#PGNAME}',\n    '{#CONNID}':\
-          \ c.component.id,\n    '{#CONNNAME}': c.component.name || c.component.id,\n\
+          \ { return; }\n  rows.push({\n    '{#PGID}': c.component.parentProcessGroupId\
+          \ || '',\n    '{#PGNAME}': c.component.parentProcessGroupId || '',\n   \
+          \ '{#CONNID}': c.component.id,\n    '{#CONNNAME}': c.component.name || c.component.id,\n\
           \    '{#SRC}': c.component.source && c.component.source.name ? c.component.source.name\
-          \ : ''\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
+          \ : '',\n    '{#DEST}': c.component.destination && c.component.destination.name\
+          \ ? c.component.destination.name : ''\n  });\n});\nreturn JSON.stringify({\
+          \ 'data': rows });\n"
       item_prototypes:
       - uuid: 959405a3d4774c4c956f672c1b016af2
         key: nifi.queue.raw[{#CONNID}]
@@ -862,21 +836,19 @@ zabbix_export:
         history: 1d
         trends: '0'
         request_method: GET
-        url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
+        url: '{$NIFI.URL}/connections/{#CONNID}'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value);
 
-            var q = body.flowFileQueueSnapshot || body;
-
-            return JSON.stringify(q);
+            return JSON.stringify(body.connection || body);
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 6647c9e68cbf4edf9e7609bab2cc3a34
         key: nifi.queue.objects[{#CONNID}]
         name: 'Fila {#CONNNAME}: Objetos em fila'
@@ -885,24 +857,21 @@ zabbix_export:
         history: 7d
         trends: 30d
         request_method: GET
-        url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
+        url: '{$NIFI.URL}/connections/{#CONNID}'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var b = JSON.parse(value);
 
-            var q = b.flowFileQueueListing || b;
+            var q = (b.queueSummary || b);
 
-            var n = (q.totalCount != null) ? q.totalCount : ((q.listings && q.listings[0])
-            ? q.listings[0].flowFileCount : 0);
-
-            return parseInt(n, 10) || 0;
+            return parseInt((q.queueSize && q.queueSize.objectCount) || 0, 10);
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: bb09f710c54f43799591ce75e0841496
         key: nifi.queue.bytes[{#CONNID}]
         name: 'Fila {#CONNNAME}: Bytes em fila'
@@ -912,24 +881,21 @@ zabbix_export:
         trends: 30d
         units: B
         request_method: GET
-        url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
+        url: '{$NIFI.URL}/connections/{#CONNID}'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var b = JSON.parse(value);
 
-            var q = b.flowFileQueueListing || b;
+            var q = (b.queueSize || b);
 
-            var n = (q.byteCount != null) ? q.byteCount : ((q.listings && q.listings[0])
-            ? q.listings[0].byteCount : 0);
-
-            return parseInt(n, 10) || 0;
+            return parseInt(q.queueSize && q.queueSize.byteCount || 0, 10);
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: ed0e2711510f4f9bacd06521a5b577b9
         key: nifi.queue.bp_objects_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure objetos (%)'
@@ -939,28 +905,28 @@ zabbix_export:
         trends: 30d
         units: '%'
         request_method: GET
-        url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
+        url: '{$NIFI.URL}/connections/{#CONNID}'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var b = JSON.parse(value);
 
-            var q = b.flowFileQueueListing || b;
+            var q = b.queue || b;
 
-            var obj = parseInt((q.totalCount != null) ? q.totalCount : 0, 10) || 0;
+            var obj = parseInt((q.queueSize && q.queueSize.objectCount) || 0, 10);
 
-            var bp = (q.backPressureObjectThreshold != null) ? parseInt(q.backPressureObjectThreshold,
-            10) : 0;
+            var bp = parseInt((q.backPressure && q.backPressure.objectThreshold) ||
+            0, 10);
 
             if (bp <= 0) { return 0; }
 
-            return 100 * obj / bp;
+            return Math.round(100 * obj / bp * 100) / 100;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 3100d9d7fce447feaa55cc96485db9fe
         key: nifi.queue.bp_bytes_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure bytes (%)'
@@ -970,28 +936,28 @@ zabbix_export:
         trends: 30d
         units: '%'
         request_method: GET
-        url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
+        url: '{$NIFI.URL}/connections/{#CONNID}'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var b = JSON.parse(value);
 
-            var q = b.flowFileQueueListing || b;
+            var q = b.queue || b;
 
-            var bytes = parseInt((q.byteCount != null) ? q.byteCount : 0, 10) || 0;
+            var bytes = parseInt((q.queueSize && q.queueSize.byteCount) || 0, 10);
 
-            var bp = (q.backPressureBytesThreshold != null) ? parseInt(q.backPressureBytesThreshold,
-            10) : 0;
+            var bp = parseInt((q.backPressure && q.backPressure.bytesThreshold) ||
+            0, 10);
 
             if (bp <= 0) { return 0; }
 
-            return 100 * bytes / bp;
+            return Math.round(100 * bytes / bp * 100) / 100;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       - uuid: 391b59edaca542e4b404b36972367cc1
         key: nifi.queue.oldest[{#CONNID}]
         name: 'Fila {#CONNNAME}: Idade do dado mais antigo (s)'
@@ -1001,31 +967,26 @@ zabbix_export:
         trends: 30d
         units: s
         request_method: GET
-        url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
+        url: '{$NIFI.URL}/connections/{#CONNID}'
         timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - 'var b = JSON.parse(value);
 
-            var q = b.flowFileQueueListing || b;
+            var q = b.queue || b;
 
-            var oid = (q.oldestFlowFileTimestamp != null) ? parseInt(q.oldestFlowFileTimestamp,
-            10) : 0;
+            var ts = parseInt((q.oldestFlowFileTimestamp || q.oldestFlowFileEventTimestamp
+            || 0), 10);
 
-            var ms = (q.oldestFlowFileEventTimestamp != null) ? parseInt(q.oldestFlowFileEventTimestamp,
-            10) : 0;
+            if (ts <= 0) { return 0; }
 
-            var t = oid || ms;
-
-            if (t <= 0) { return 0; }
-
-            return Math.max(0, Math.floor(Date.now() / 1000) - t);
+            return Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(ts / 1000));
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       lld_macro_paths:
       - lld_macro: '{#PGID}'
         path: $.pgid
@@ -1076,9 +1037,9 @@ zabbix_export:
           value: '{#CONNNAME}'
         - tag: scope
           value: performance
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     vendor:
       name: Internal
       version: '1.0'
@@ -1143,17 +1104,17 @@ zabbix_export:
             return parseInt(v, 10) || 0;
 
             '
-        authtype: BASIC
-        username: '{$NIFI.USER}'
-        password: '{$NIFI.PASSWORD}'
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
       lld_macro_paths:
       - lld_macro: '{#COUNTERID}'
         path: $.counterid
       - lld_macro: '{#COUNTERNAME}'
         path: $.countername
-      authtype: BASIC
-      username: '{$NIFI.USER}'
-      password: '{$NIFI.PASSWORD}'
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
     vendor:
       name: Internal
       version: '1.0'
