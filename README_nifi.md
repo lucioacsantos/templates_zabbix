@@ -4,77 +4,70 @@ Monitoramento de fluxos Apache NiFi via API REST (`/nifi-api`), com **JavaScript
 (coleta e processamento no lado do Zabbix). Não requer agente — apenas conectividade HTTP(S)
 do Zabbix Server/Proxy até a API do NiFi.
 
-Arquivo: `template_nifi_api.yaml` (export Zabbix 7.4, 4 templates, 23 snippets de JS validados).
+Arquivo: `template_nifi_api.yaml` (export Zabbix **7.4**, 4 templates).
 
 ## Estrutura
 
 | Template | Função |
 |---|---|
-| `Apache NiFi API by JS` (master) | Status da API, bulletin board + LLD de Process Groups (threads, filas, flowfiles in/out, bytes, processadores com erro, uptime) |
+| `Apache NiFi API by JS` (master) | Status da API, bulletin board, **login/token** + LLD de Process Groups (threads, filas, flowfiles in/out, bytes, processadores com erro, uptime) |
 | `... Cluster Resources` | JVM (heap usado/max/%, GC %, uptime), storage dos repositórios (%), nodes do cluster, threads totais |
 | `... Queues` | Por fila (connection): objetos/bytes, % de back pressure (objetos e bytes), idade do dado mais antigo |
 | `... Counters` | LLD de counters registrados (ex.: UpdateCounter) com filtro por regex |
 
-## Importação
+## Autenticação
 
-1. Zabbix UI → *Data collection → Templates → Import*.
-2. Selecione `template_nifi_api.yaml` e marque *Create new* / *Update existing*.
+A versão do NiFi em uso autentica via **login → token → Bearer**:
 
-## Configuração (macros no host)
+1. O item `NiFi API: Token de acesso (login)` (`nifi.api.token`) faz `POST {$NIFI.URL}/access/token`
+   com `{"username":"...","password":"..."}` e registra o token gerado (histórico desabilitado; uso diagnóstico).
+2. As demais chamadas executam com **HTTP Basic** (`authtype: BASIC` + `{$NIFI.USER}`/`{$NIFI.PASSWORD}`),
+   que a API do NiFi aceita nativamente em todos os endpoints — sem precisar encadear login no item.
+3. Se preferir token fixo (ex.: gerado externamente com expiração longa), defina
+   `{$NIFI.TOKEN}` no host e troque `authtype` por header `Authorization: Bearer {$NIFI.TOKEN}`.
+
+Teste manual do login:
+
+```bash
+curl -sk -X POST "{$NIFI_URL}/access/token" \
+  -d 'username=USUARIO&password=SENHA'
+# retorna o token em texto puro
+```
+
+## Macros principais
 
 | Macro | Descrição |
 |---|---|
 | `{$NIFI.URL}` | URL base da API (ex.: `https://nifi-host:8443/nifi-api`) |
-| `{$NIFI.USER}` / `{$NIFI.PASSWORD}` | Credenciais Basic (usuário/senha de serviço) |
-| `{$NIFI.TOKEN}` | Bearer token (se `{$NIFI.AUTH}=bearer`) |
-| `{$NIFI.AUTH}` | `basic` (padrão) ou `bearer` |
+| `{$NIFI.USER}` / `{$NIFI.PASSWORD}` | Credenciais do login do NiFi |
+| `{$NIFI.TOKEN}` | Token de acesso (uso manual/scripts; itens usam Basic) |
 | `{$NIFI.ROOT_PG_ID}` | ID do Process Group raiz (default `root`) |
 | `{$NIFI.PROCESS_GROUPS}` | Lista estática de IDs de PGs. Vazio = descobrir via API |
 | `{$NIFI.QUEUE_BACKPRESSURE_PCT}` | % do back pressure p/ trigger (default `80`) |
 | `{$NIFI.QUEUE_AGE_MIN}` | Idade máx. (s) do dado na fila (default `300`) |
 | `{$NIFI.HEAP_PCT}` | % de heap da JVM p/ trigger (default `85`) |
 | `{$NIFI.PROC_STOPPED}` | Processadores inválidos/parados tolerados (default `0`) |
-| `{$NIFI.COUNTERS_FILTER}` | Regex p/ filtrar counters descobertos (vazio = todos) |
-| `{$NIFI.TIMEOUT}` | Timeout HTTP (s) (default `15`) |
-| `{$NIFI.STATUS_NS_TRIGGER}` | Ciclos com API down p/ trigger (default `3`) |
+| `{$NIFI.COUNTERS_FILTER}` | Regex p/ filtrar counters (vazio = todos) |
+| `{$NIFI.TIMEOUT}` | Timeout HTTP com unidade (default `15s`) |
 
 ## Requisitos no NiFi
 
-- Usuário/SA com permissões **read** em `/flow`, `/controller`, `/counters`
-  (política `read` + `view` nos componentes).
-- Endpoints usados: `/flow/status`, `/flow/process-groups/{id}`,
+- Usuário com permissões **read** em `/flow`, `/controller`, `/counters`.
+- Endpoints: `/access/token` (login), `/flow/status`, `/flow/process-groups/{id}`,
   `/controller/bulletin-board`, `/controller/diagnostics`, `/flowfile-queues/{id}`, `/counters`.
-
-## Teste manual da API (valida URL e credencial)
-
-```bash
-curl -sk -u "$NIFI_USER:$NIFI_PASS" \
-  "{$NIFI_URL}/flow/status" | head -c 500
-```
-
-## Itens por Process Group (LLD)
-
-- Threads ativas, filas (objetos/bytes), FlowFiles in/out (por 5m)
-- Bytes lidos/escritos (Bps), uptime dos processadores
-- Processadores invalidos/parados (trigger)
-- Status raw do PG (para troubleshooting)
 
 ## Triggers (principais)
 
 - NiFi API sem dados (HIGH)
 - Heap JVM > `{$NIFI.HEAP_PCT}%` (WARNING)
-- Repositório de storage > `{$NIFI.QUEUE_BACKPRESSURE_PCT}%` (WARNING)
+- Repositório > `{$NIFI.QUEUE_BACKPRESSURE_PCT}%` (WARNING)
 - Threads totais > `{$NIFI.THREADS_MAX}` (WARNING)
-- Fila com back pressure (objetos/bytes) > `{$NIFI.QUEUE_BACKPRESSURE_PCT}%` (AVERAGE)
+- Fila com back pressure > `{$NIFI.QUEUE_BACKPRESSURE_PCT}%` (AVERAGE)
 - Fila com dados parados > `{$NIFI.QUEUE_AGE_MIN}s` (AVERAGE)
-- Processadores invalidos/parados no PG (AVERAGE)
+- Processadores inválidos/parados no PG (AVERAGE)
 - Bullets de ERROR no bulletin board (AVERAGE)
 
 ## Observações
 
 - A LLD de filas depende da LLD de PGs do master (macro `{#PGID}`).
-- O item `nifi.pg.status[{#PGID}]` (raw TEXT) guarda o JSON completo para troubleshooting.
-- Counters do NiFi são criados pelos componentes (ex.: `UpdateCounter`); o template
-  só descobre os já registrados.
-- Para clusters com HTTPS próprio, ajuste `verify_host=0` no host se o certificado
-  não for válido para o FQDN monitorado.
+- Counters só são descobertos se já registrados pelos componentes (ex.: `UpdateCounter`).

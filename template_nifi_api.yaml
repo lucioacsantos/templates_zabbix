@@ -11,23 +11,22 @@ zabbix_export:
       sem agente.
 
 
-      A LLD descobre Process Groups (via /flow/process-groups/root e processadores
-      por grupo)
+      Autenticacao: os itens usam HTTP Basic com {$NIFI.USER}/{$NIFI.PASSWORD} (NiFi
+      aceita Basic nas APIs).
 
-      ou usa a lista estatica {$NIFI.PROCESS_GROUPS}. Templates dependentes coletam:
+      O item "NiFi API: Token de acesso" faz POST em {$NIFI.URL}/access/token e registra
+      o token gerado
 
-      recursos do cluster/jvm, filas (queues) e counters/estatisticas.
+      (uso em scripts/webhooks; as demais chamadas seguem com Basic).
 
 
-      Requer Zabbix Server/Proxy >= 6.0, conectividade HTTP(S) ate a API do NiFi e
-      credencial
+      A LLD descobre Process Groups (via /flow/process-groups/{root}) ou usa {$NIFI.PROCESS_GROUPS}.
 
-      com permissoes de leitura (>= "read" no /flow). Autenticacao por Basic (padrao)
-      ou
+      Templates dependentes: recursos (JVM/cluster/storage), filas (back pressure)
+      e counters.
 
-      Bearer token ({$NIFI.AUTH}).
 
-      '
+      Requer Zabbix Server/Proxy >= 7.4 e conectividade HTTP(S) ate a API do NiFi.'
     groups:
     - name: Templates
     macros:
@@ -42,10 +41,14 @@ zabbix_export:
       description: Senha para autenticacao Basic.
     - macro: '{$NIFI.TOKEN}'
       type: SECRET_TEXT
-      description: Bearer token (usado se {$NIFI.AUTH}=bearer).
+      description: 'Token de acesso do NiFi. Preencha com um token de longa duracao
+        OU deixe vazio e use {$NIFI.USER}/{$NIFI.PASSWORD}: o item de login obtera
+        o token em {$NIFI.URL}/access/token e guardara no valor do item.'
     - macro: '{$NIFI.AUTH}'
       value: basic
-      description: 'Modo de autenticacao: basic ou bearer.'
+      description: 'Modo de autenticacao: basic (login automatico via {$NIFI.USER}/{$NIFI.PASSWORD}
+        em /access/token, token armazenado em {$NIFI.TOKEN}) ou token (usa {$NIFI.TOKEN}
+        direto).'
     - macro: '{$NIFI.ROOT_PG_ID}'
       value: root
       description: ID do Process Group raiz (ou "root").
@@ -130,6 +133,9 @@ zabbix_export:
         tags:
         - tag: scope
           value: availability
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     - uuid: c9a9d88eeecf43f7bf5b299a482fb8b2
       key: nifi.api.bullets
       name: 'NiFi API: Bullets do UI (warnings/errors)'
@@ -164,6 +170,33 @@ zabbix_export:
         tags:
         - tag: scope
           value: notice
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
+    - uuid: 139dd8cf1f7545a7abbd05274e5e9bc4
+      key: nifi.api.token
+      name: 'NiFi API: Token de acesso (login)'
+      type: HTTP_AGENT
+      value_type: CHAR
+      history: '0'
+      trends: '0'
+      request_method: POST
+      post_type: JSON
+      posts: '{"username":"{$NIFI.USER}","password":"{$NIFI.PASSWORD}"}'
+      url: '{$NIFI.URL}/access/token'
+      timeout: '{$NIFI.TIMEOUT}'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var v = value.trim().replace(/\n/g, '''');
+
+          if (!v || v.length < 20) { throw ''Login NiFi falhou: resposta invalida'';
+          }
+
+          return v;
+
+          '
+      authtype: NONE
     discovery_rules:
     - uuid: 551ea9d137aa43ae893db21c913517b3
       key: nifi.discovery.process_groups
@@ -210,6 +243,9 @@ zabbix_export:
             return JSON.stringify(body.processGroupStatus);
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: f1a50b3afd8944e5b3766fe0396f3a20
         key: nifi.pg.threads[{#PGID}]
         name: 'PG {#PGNAME}: Threads ativas'
@@ -232,6 +268,9 @@ zabbix_export:
             10) : 0;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: e67e3e0d91b64bb3a011fa9846157d33
         key: nifi.pg.queued_count[{#PGID}]
         name: 'PG {#PGNAME}: Filas - objetos em fila'
@@ -254,6 +293,9 @@ zabbix_export:
             return agg;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: e6d920b681b84ec5a5e67c17893f719d
         key: nifi.pg.queued_bytes[{#PGID}]
         name: 'PG {#PGNAME}: Filas - bytes em fila'
@@ -276,6 +318,9 @@ zabbix_export:
             10) : 0;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: a7e2849776994699812d9d9a7ae7bb03
         key: nifi.pg.flowfiles_in[{#PGID}]
         name: 'PG {#PGNAME}: FlowFiles in (5m)'
@@ -299,6 +344,9 @@ zabbix_export:
             return r / 300;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 5632af655fb74ca8a6607f783382913c
         key: nifi.pg.flowfiles_out[{#PGID}]
         name: 'PG {#PGNAME}: FlowFiles out (5m)'
@@ -322,6 +370,9 @@ zabbix_export:
             return r / 300;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 4cd2aac3ba7d4964a8a3be20208588d2
         key: nifi.pg.bytes_read[{#PGID}]
         name: 'PG {#PGNAME}: Bytes lidos (5m)'
@@ -345,6 +396,9 @@ zabbix_export:
             return r / 300;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 5da89b556fcd4909a2c25e689041be94
         key: nifi.pg.bytes_written[{#PGID}]
         name: 'PG {#PGNAME}: Bytes escritos (5m)'
@@ -368,6 +422,9 @@ zabbix_export:
             return r / 300;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: b7f6b5eb7eeb4801b3921e5a488a4aaa
         key: nifi.pg.proc_errors[{#PGID}]
         name: 'PG {#PGNAME}: Processadores com erro/stopped'
@@ -389,6 +446,9 @@ zabbix_export:
             \ : '';\n  var needs = p.component && (p.component.validationErrors ||\
             \ []).length > 0;\n  if (st === 'INVALID' || needs) { bad++; }\n});\n\
             return bad;\n"
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 8df38c3c1ab94e4895ab8b5acfe6d2ac
         key: nifi.pg.uptime[{#PGID}]
         name: 'PG {#PGNAME}: Uptime dos processadores (s)'
@@ -410,6 +470,9 @@ zabbix_export:
             \ === 'RUNNING' && p.status && p.status.statsSnapshot) {\n    var st =\
             \ p.status.statsSnapshot;\n    var up = st.uptime ? parseInt(st.uptime,\
             \ 10) : 0;\n    if (up > max) { max = up; }\n  }\n});\nreturn max;\n"
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       trigger_prototypes:
       - uuid: c7de480d6d2e4942b50e8eecab1837ac
         expression: nodata(/Apache NiFi API by JS/nifi.pg.status[{#PGID}],{$NIFI.STATUS_NS_TRIGGER})=1
@@ -441,6 +504,9 @@ zabbix_export:
         path: $.pgname
       - lld_macro: '{#PGPATH}'
         path: $.pgpath
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     tags:
     - tag: class
       value: software
@@ -494,6 +560,9 @@ zabbix_export:
           return JSON.stringify(body.controller);
 
           '
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     - uuid: a0198e3df6284f4ea2e04bc441308d97
       key: nifi.jvm.heap_used
       name: 'NiFi JVM: Heap usado'
@@ -677,6 +746,9 @@ zabbix_export:
           \ || r.name || 'repo',\n      'used': r.usedBytes || 0,\n      'free': r.freeBytes\
           \ || 0,\n      'limit': r.limitBytes || 0\n    });\n  });\n});\nreturn JSON.stringify({\
           \ 'repositories': out });\n"
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     - uuid: 56fbc53931964ed2bc145057ad72ef24
       key: nifi.storage.used_pct
       name: 'NiFi Storage: Uso maximo dos repositorios (%)'
@@ -738,6 +810,9 @@ zabbix_export:
         tags:
         - tag: scope
           value: performance
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     vendor:
       name: Internal
       version: '1.0'
@@ -799,6 +874,9 @@ zabbix_export:
             return JSON.stringify(q);
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 6647c9e68cbf4edf9e7609bab2cc3a34
         key: nifi.queue.objects[{#CONNID}]
         name: 'Fila {#CONNNAME}: Objetos em fila'
@@ -822,6 +900,9 @@ zabbix_export:
             return parseInt(n, 10) || 0;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: bb09f710c54f43799591ce75e0841496
         key: nifi.queue.bytes[{#CONNID}]
         name: 'Fila {#CONNNAME}: Bytes em fila'
@@ -846,6 +927,9 @@ zabbix_export:
             return parseInt(n, 10) || 0;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: ed0e2711510f4f9bacd06521a5b577b9
         key: nifi.queue.bp_objects_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure objetos (%)'
@@ -874,6 +958,9 @@ zabbix_export:
             return 100 * obj / bp;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 3100d9d7fce447feaa55cc96485db9fe
         key: nifi.queue.bp_bytes_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure bytes (%)'
@@ -902,6 +989,9 @@ zabbix_export:
             return 100 * bytes / bp;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       - uuid: 391b59edaca542e4b404b36972367cc1
         key: nifi.queue.oldest[{#CONNID}]
         name: 'Fila {#CONNNAME}: Idade do dado mais antigo (s)'
@@ -933,6 +1023,9 @@ zabbix_export:
             return Math.max(0, Math.floor(Date.now() / 1000) - t);
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       lld_macro_paths:
       - lld_macro: '{#PGID}'
         path: $.pgid
@@ -983,6 +1076,9 @@ zabbix_export:
           value: '{#CONNNAME}'
         - tag: scope
           value: performance
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     vendor:
       name: Internal
       version: '1.0'
@@ -1047,11 +1143,17 @@ zabbix_export:
             return parseInt(v, 10) || 0;
 
             '
+        authtype: BASIC
+        username: '{$NIFI.USER}'
+        password: '{$NIFI.PASSWORD}'
       lld_macro_paths:
       - lld_macro: '{#COUNTERID}'
         path: $.counterid
       - lld_macro: '{#COUNTERNAME}'
         path: $.countername
+      authtype: BASIC
+      username: '{$NIFI.USER}'
+      password: '{$NIFI.PASSWORD}'
     vendor:
       name: Internal
       version: '1.0'
