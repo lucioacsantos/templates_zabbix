@@ -182,19 +182,6 @@ zabbix_export:
             return v;
 
             '
-        triggers:
-        - uuid: 2a2b3c4d5e6f6f708192a3b4c5d6e7f0
-          expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER}m)=0
-          name: 'Namespace {#NSNAME}: sem targets up (down)'
-          priority: WARNING
-          description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
-            minutos.
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: availability
       lld_macro_paths:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
@@ -202,6 +189,19 @@ zabbix_export:
         path: $.cpu
       - lld_macro: '{#NSMEMQUOTA}'
         path: $.mem
+      trigger_prototypes:
+      - uuid: 2a2b3c4d5e6f6f708192a3b4c5d6e7f0
+        expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER}m)=0
+        name: 'Namespace {#NSNAME}: sem targets up (down)'
+        priority: WARNING
+        description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
+          minutos.
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: availability
     tags:
     - tag: class
       value: software
@@ -348,19 +348,6 @@ zabbix_export:
             return isNaN(num) ? 0 : num;
 
             '
-        triggers:
-        - uuid: 5a1b2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
-          name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
-          priority: WARNING
-          description: Consumo de CPU do namespace {#NSNAME} acima do percentual configurado
-            do limite (throttling provavel).
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: performance
       - uuid: 6a1b2c3d4e6f6f708192a3b4c5d6e7f0
         key: thanos.namespace_nsname_memoria_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do limite'
@@ -390,20 +377,6 @@ zabbix_export:
             return isNaN(num) ? 0 : num;
 
             '
-        triggers:
-        - uuid: 7a1b2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
-          name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do
-            limite'
-          priority: WARNING
-          description: Consumo de memoria do namespace {#NSNAME} proximo do limite
-            (risco de OOMKill).
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: performance
       - uuid: 8a1b2c3d4e6f6f708192a3b4c5d6e7f0
         key: thanos.namespace_nsname_cpu_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do Request'
@@ -517,6 +490,31 @@ zabbix_export:
       lld_macro_paths:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
+      trigger_prototypes:
+      - uuid: 5a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
+        name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
+        priority: WARNING
+        description: Consumo de CPU do namespace {#NSNAME} acima do percentual configurado
+          do limite (throttling provavel).
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: performance
+      - uuid: 7a1b2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
+        name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do limite'
+        priority: WARNING
+        description: Consumo de memoria do namespace {#NSNAME} proximo do limite (risco
+          de OOMKill).
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: performance
     vendor:
       name: Internal
       version: '1.0'
@@ -599,19 +597,6 @@ zabbix_export:
             : 0;
 
             '
-        triggers:
-        - uuid: 6a1b2c3d4e6f6f708192a3b40016e7f0
-          expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0
-          name: 'Namespace {#NSNAME}: pods pendentes'
-          priority: AVERAGE
-          description: Existem pods em fase Pending no namespace {#NSNAME} (possivel
-            falta de recursos).
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: capacity
       - uuid: 7a1b2c3d4e6f6f708192a3b40016e7f0
         key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods com falha'
@@ -687,19 +672,6 @@ zabbix_export:
             : 0;
 
             '
-        triggers:
-        - uuid: 0a1b2c3d4e6f6f708192a3b40016e7f0
-          expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0
-          name: 'Namespace {#NSNAME}: pods nao rodando'
-          priority: AVERAGE
-          description: Existem pods nao-Running (Pending/Failed/Unknown) no namespace
-            {#NSNAME}.
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: availability
       - uuid: 1a1a2c3d4e6f6f708192a3b4c5d6e7f0
         key: thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Restarts de containers (1h)'
@@ -729,22 +701,46 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-        triggers:
-        - uuid: 2a1a2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
-          name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
-          priority: WARNING
-          description: Contadores de restart aumentaram no namespace {#NSNAME} (crashloops,
-            OOM, probes).
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: performance
       lld_macro_paths:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
+      trigger_prototypes:
+      - uuid: 6a1b2c3d4e6f6f708192a3b40016e7f0
+        expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0
+        name: 'Namespace {#NSNAME}: pods pendentes'
+        priority: AVERAGE
+        description: Existem pods em fase Pending no namespace {#NSNAME} (possivel
+          falta de recursos).
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: capacity
+      - uuid: 0a1b2c3d4e6f6f708192a3b40016e7f0
+        expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0
+        name: 'Namespace {#NSNAME}: pods nao rodando'
+        priority: AVERAGE
+        description: Existem pods nao-Running (Pending/Failed/Unknown) no namespace
+          {#NSNAME}.
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: availability
+      - uuid: 2a1a2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
+        name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
+        priority: WARNING
+        description: Contadores de restart aumentaram no namespace {#NSNAME} (crashloops,
+          OOM, probes).
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: performance
     vendor:
       name: Internal
       version: '1.0'
@@ -865,19 +861,6 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-        triggers:
-        - uuid: 8a1b2c3d4e6f6f708192a3b40026e7f0
-          expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
-          name: 'Namespace {#NSNAME}: alertas Prometheus firing'
-          priority: WARNING
-          description: Existem regras de alerta Prometheus em estado firing para o
-            namespace {#NSNAME}.
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: notice
       - uuid: 9a1b2c3d4e6f6f708192a3b40026e7f0
         key: thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Requisicoes ao apiserver'
@@ -907,19 +890,6 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-        triggers:
-        - uuid: 0a1b2c3d4e6f6f708192a3b40026e7f0
-          expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
-          name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
-          priority: WARNING
-          description: Taxa de requisicoes (por namespace do cliente) acima de {$THANOS.EPS_MAX}
-            rps.
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: performance
       - uuid: 1a0a2c3d4e6f6f708192a3b4c5d6e7f0
         key: thanos.namespace_nsname_hpa_replicas_atuais[{#NSNAME}]
         name: 'Namespace {#NSNAME}: HPA replicas atuais'
@@ -1061,22 +1031,46 @@ zabbix_export:
             return isNaN(v) ? 0 : v;
 
             '
-        triggers:
-        - uuid: 6a0a2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
-          name: 'Namespace {#NSNAME}: HPA saturado'
-          priority: WARNING
-          description: Replicas atuais >= {$THANOS.HPA_MAX_PCT}% do maximo (risco
-            de saturacao).
-          manual_close: 'YES'
-          tags:
-          - tag: namespace
-            value: '{#NSNAME}'
-          - tag: scope
-            value: capacity
       lld_macro_paths:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
+      trigger_prototypes:
+      - uuid: 8a1b2c3d4e6f6f708192a3b40026e7f0
+        expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
+        name: 'Namespace {#NSNAME}: alertas Prometheus firing'
+        priority: WARNING
+        description: Existem regras de alerta Prometheus em estado firing para o namespace
+          {#NSNAME}.
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: notice
+      - uuid: 0a1b2c3d4e6f6f708192a3b40026e7f0
+        expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
+        name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
+        priority: WARNING
+        description: Taxa de requisicoes (por namespace do cliente) acima de {$THANOS.EPS_MAX}
+          rps.
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: performance
+      - uuid: 6a0a2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
+        name: 'Namespace {#NSNAME}: HPA saturado'
+        priority: WARNING
+        description: Replicas atuais >= {$THANOS.HPA_MAX_PCT}% do maximo (risco de
+          saturacao).
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: capacity
     vendor:
       name: Internal
       version: '1.0'

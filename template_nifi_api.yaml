@@ -388,19 +388,6 @@ zabbix_export:
             \ : '';\n  var needs = p.component && (p.component.validationErrors ||\
             \ []).length > 0;\n  if (st === 'INVALID' || needs) { bad++; }\n});\n\
             return bad;\n"
-        triggers:
-        - uuid: ba1f1b2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/Apache NiFi API by JS/nifi.pg.proc_errors[{#PGID}],10m)>{$NIFI.PROC_STOPPED}
-          name: 'PG {#PGNAME}: processadores invalidos/parados'
-          priority: AVERAGE
-          description: Existem processadores invalidos ou com erros de validacao no
-            PG {#PGNAME}.
-          manual_close: 'YES'
-          tags:
-          - tag: processgroup
-            value: '{#PGNAME}'
-          - tag: scope
-            value: availability
       - uuid: bb1f1b2c3d4e6f6f708192a3b4c5d6e7f0
         key: nifi.pg.uptime[{#PGID}]
         name: 'PG {#PGNAME}: Uptime dos processadores (s)'
@@ -428,6 +415,18 @@ zabbix_export:
         name: 'PG {#PGNAME}: sem dados da API'
         priority: WARNING
         description: Process Group {#PGNAME} ({#PGID}) nao respondeu via API.
+        manual_close: 'YES'
+        tags:
+        - tag: processgroup
+          value: '{#PGNAME}'
+        - tag: scope
+          value: availability
+      - uuid: ba1f1b2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/Apache NiFi API by JS/nifi.pg.proc_errors[{#PGID}],10m)>{$NIFI.PROC_STOPPED}
+        name: 'PG {#PGNAME}: processadores invalidos/parados'
+        priority: AVERAGE
+        description: Existem processadores invalidos ou com erros de validacao no
+          PG {#PGNAME}.
         manual_close: 'YES'
         tags:
         - tag: processgroup
@@ -874,19 +873,6 @@ zabbix_export:
             return 100 * obj / bp;
 
             '
-        triggers:
-        - uuid: b7f0b2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_objects_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
-          name: 'Fila {#CONNNAME}: back pressure objetos > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
-          priority: AVERAGE
-          description: Fila {#CONNNAME} (PG {#PGNAME}) proxima do back pressure por
-            objetos.
-          manual_close: 'YES'
-          tags:
-          - tag: queue
-            value: '{#CONNNAME}'
-          - tag: scope
-            value: performance
       - uuid: b8f0b2c3d4e6f6f708192a3b4c5d6e7f0
         key: nifi.queue.bp_bytes_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure bytes (%)'
@@ -915,19 +901,6 @@ zabbix_export:
             return 100 * bytes / bp;
 
             '
-        triggers:
-        - uuid: c0ffee000005d4e6f6f708192a3b4c5d
-          expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_bytes_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
-          name: 'Fila {#CONNNAME}: back pressure bytes > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
-          priority: AVERAGE
-          description: Fila {#CONNNAME} (PG {#PGNAME}) proxima do back pressure por
-            bytes.
-          manual_close: 'YES'
-          tags:
-          - tag: queue
-            value: '{#CONNNAME}'
-          - tag: scope
-            value: performance
       - uuid: ba0f1b2c3d4e6f6f708192a3b4c5d6e7f0
         key: nifi.queue.oldest[{#CONNID}]
         name: 'Fila {#CONNNAME}: Idade do dado mais antigo (s)'
@@ -959,19 +932,6 @@ zabbix_export:
             return Math.max(0, Math.floor(Date.now() / 1000) - t);
 
             '
-        triggers:
-        - uuid: bb0f1b2c3d4e6f6f708192a3b4c5d6e7f0
-          expression: min(/Apache NiFi API by JS Queues/nifi.queue.oldest[{#CONNID}],10m)>{$NIFI.QUEUE_AGE_MIN}
-          name: 'Fila {#CONNNAME}: dados parados'
-          priority: AVERAGE
-          description: O dado mais antigo da fila {#CONNNAME} tem mais de {$NIFI.QUEUE_AGE_MIN}
-            segundos.
-          manual_close: 'YES'
-          tags:
-          - tag: queue
-            value: '{#CONNNAME}'
-          - tag: scope
-            value: performance
       lld_macro_paths:
       - lld_macro: '{#PGID}'
         path: $.pgid
@@ -985,6 +945,43 @@ zabbix_export:
         path: $.src
       - lld_macro: '{#DEST}'
         path: $.dest
+      trigger_prototypes:
+      - uuid: b7f0b2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_objects_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
+        name: 'Fila {#CONNNAME}: back pressure objetos > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
+        priority: AVERAGE
+        description: Fila {#CONNNAME} (PG {#PGNAME}) proxima do back pressure por
+          objetos.
+        manual_close: 'YES'
+        tags:
+        - tag: queue
+          value: '{#CONNNAME}'
+        - tag: scope
+          value: performance
+      - uuid: c0ffee000005d4e6f6f708192a3b4c5d
+        expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_bytes_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
+        name: 'Fila {#CONNNAME}: back pressure bytes > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
+        priority: AVERAGE
+        description: Fila {#CONNNAME} (PG {#PGNAME}) proxima do back pressure por
+          bytes.
+        manual_close: 'YES'
+        tags:
+        - tag: queue
+          value: '{#CONNNAME}'
+        - tag: scope
+          value: performance
+      - uuid: bb0f1b2c3d4e6f6f708192a3b4c5d6e7f0
+        expression: min(/Apache NiFi API by JS Queues/nifi.queue.oldest[{#CONNID}],10m)>{$NIFI.QUEUE_AGE_MIN}
+        name: 'Fila {#CONNNAME}: dados parados'
+        priority: AVERAGE
+        description: O dado mais antigo da fila {#CONNNAME} tem mais de {$NIFI.QUEUE_AGE_MIN}
+          segundos.
+        manual_close: 'YES'
+        tags:
+        - tag: queue
+          value: '{#CONNNAME}'
+        - tag: scope
+          value: performance
     vendor:
       name: Internal
       version: '1.0'
