@@ -54,8 +54,8 @@ zabbix_export:
       description: Lista estatica de IDs de Process Groups separados por virgula.
         Vazio = descobrir via API.
     - macro: '{$NIFI.TIMEOUT}'
-      value: '15'
-      description: Timeout (s) das requisicoes HTTP.
+      value: 15s
+      description: 'Timeout das requisicoes HTTP (com unidade, ex.: 15s ou {$X}s).'
     - macro: '{$NIFI.RETRIES}'
       value: '2'
       description: Tentativas extras em caso de falha.
@@ -108,7 +108,7 @@ zabbix_export:
       headers:
       - name: Content-Type
         value: application/json
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -138,7 +138,7 @@ zabbix_export:
       trends: '0'
       request_method: GET
       url: '{$NIFI.URL}/controller/bulletin-board'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -170,7 +170,7 @@ zabbix_export:
       type: HTTP_AGENT
       request_method: GET
       url: '{$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       delay: 1h
       lifetime: 30d
       description: Descobre Process Groups filhos do grupo raiz (ou usa {$NIFI.PROCESS_GROUPS}).
@@ -197,7 +197,7 @@ zabbix_export:
         trends: '0'
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -219,7 +219,7 @@ zabbix_export:
         units: threads
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -240,7 +240,7 @@ zabbix_export:
         trends: 30d
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -263,7 +263,7 @@ zabbix_export:
         units: B
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -285,7 +285,7 @@ zabbix_export:
         units: '!/s'
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -308,7 +308,7 @@ zabbix_export:
         units: '!/s'
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -331,7 +331,7 @@ zabbix_export:
         units: Bps
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -354,7 +354,7 @@ zabbix_export:
         units: Bps
         request_method: GET
         url: '{$NIFI.URL}/flow/status/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -376,7 +376,7 @@ zabbix_export:
         trends: 30d
         request_method: GET
         url: '{$NIFI.URL}/flow/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -398,7 +398,7 @@ zabbix_export:
         units: s
         request_method: GET
         url: '{$NIFI.URL}/flow/process-groups/{#PGID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -482,7 +482,7 @@ zabbix_export:
       trends: '0'
       request_method: GET
       url: '{$NIFI.URL}/flow/status'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -662,7 +662,7 @@ zabbix_export:
       trends: '0'
       request_method: GET
       url: '{$NIFI.URL}/controller/diagnostics'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -713,7 +713,7 @@ zabbix_export:
       units: threads
       request_method: GET
       url: '{$NIFI.URL}/flow/status'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -761,7 +761,7 @@ zabbix_export:
       type: HTTP_AGENT
       request_method: GET
       url: '{$NIFI.URL}/flow/process-groups/{#PGID}'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       delay: 5m
       lifetime: 30d
       description: Depende da LLD de PGs do master (macro {#PGID}).
@@ -787,7 +787,7 @@ zabbix_export:
         trends: '0'
         request_method: GET
         url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -807,7 +807,7 @@ zabbix_export:
         trends: 30d
         request_method: GET
         url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -831,7 +831,7 @@ zabbix_export:
         units: B
         request_method: GET
         url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -855,7 +855,7 @@ zabbix_export:
         units: '%'
         request_method: GET
         url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -883,7 +883,7 @@ zabbix_export:
         units: '%'
         request_method: GET
         url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -911,7 +911,7 @@ zabbix_export:
         units: s
         request_method: GET
         url: '{$NIFI.URL}/flowfile-queues/{#CONNID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
@@ -1002,7 +1002,7 @@ zabbix_export:
       type: HTTP_AGENT
       request_method: GET
       url: '{$NIFI.URL}/counters'
-      timeout: '{$NIFI.TIMEOUT}s'
+      timeout: '{$NIFI.TIMEOUT}'
       delay: 5m
       lifetime: 30d
       description: Descobre counters registrados (filtra por {$NIFI.COUNTERS_FILTER}
@@ -1028,7 +1028,7 @@ zabbix_export:
         trends: 30d
         request_method: GET
         url: '{$NIFI.URL}/counters/{#COUNTERID}'
-        timeout: '{$NIFI.TIMEOUT}s'
+        timeout: '{$NIFI.TIMEOUT}'
         preprocessing:
         - type: JAVASCRIPT
           parameters:
