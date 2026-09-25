@@ -1,7 +1,7 @@
 zabbix_export:
   version: '7.4'
   templates:
-  - uuid: b611000001d4e6f6f708192a3b4c5d6e7f
+  - uuid: bdb5000101f6f708192a3b4c5d6e7000
     template: Apache NiFi API by JS
     name: Apache NiFi API by JS
     description: 'Template master para monitoramento do Apache NiFi via API REST (/flow,
@@ -96,7 +96,7 @@ zabbix_export:
       value: '1'
       description: Validar host/SSL do endpoint (1=sim, 0=nao).
     items:
-    - uuid: b611000002d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000102f6f708192a3b4c5d6e7000
       key: nifi.api.status
       name: 'NiFi API: Status do servico'
       type: HTTP_AGENT
@@ -119,7 +119,7 @@ zabbix_export:
           \ c.queuedContentSize != null ? c.queuedContentSize : 0,\n  'running': c.runDuration\
           \ ? 1 : 0\n});\n"
       triggers:
-      - uuid: b611000003d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000103f6f708192a3b4c5d6e7000
         expression: nodata(/Apache NiFi API by JS/nifi.api.status,{$NIFI.STATUS_NS_TRIGGER}m)=1
         name: 'NiFi API: sem dados (servico indisponivel)'
         priority: HIGH
@@ -129,7 +129,7 @@ zabbix_export:
         tags:
         - tag: scope
           value: availability
-    - uuid: b611000004d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000104f6f708192a3b4c5d6e7000
       key: nifi.api.bullets
       name: 'NiFi API: Bullets do UI (warnings/errors)'
       type: HTTP_AGENT
@@ -153,7 +153,7 @@ zabbix_export:
           \ 'last_error': last });\n"
         error_handler: DISCARD_VALUE
       triggers:
-      - uuid: b611000005d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000105f6f708192a3b4c5d6e7000
         expression: find(/Apache NiFi API by JS/nifi.api.bullets,5m,"like","\"error\":{$NIFI.BULLETS_ERROR}")=1
         name: 'NiFi: bullets de ERROR no bulletin board'
         priority: AVERAGE
@@ -164,7 +164,7 @@ zabbix_export:
         - tag: scope
           value: notice
     discovery_rules:
-    - uuid: b611000006d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000106f6f708192a3b4c5d6e7000
       key: nifi.discovery.process_groups
       name: Descoberta de Process Groups
       type: HTTP_AGENT
@@ -188,7 +188,7 @@ zabbix_export:
           \ : '/';\n    push(comp.id, comp.name, path);\n  });\n}\nreturn JSON.stringify({\
           \ 'data': rows });\n"
       item_prototypes:
-      - uuid: b611000007d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000107f6f708192a3b4c5d6e7000
         key: nifi.pg.status[{#PGID}]
         name: 'PG {#PGNAME}: Status (raw)'
         type: HTTP_AGENT
@@ -209,7 +209,7 @@ zabbix_export:
             return JSON.stringify(body.processGroupStatus);
 
             '
-      - uuid: b611000008d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000108f6f708192a3b4c5d6e7000
         key: nifi.pg.threads[{#PGID}]
         name: 'PG {#PGNAME}: Threads ativas'
         type: HTTP_AGENT
@@ -231,7 +231,7 @@ zabbix_export:
             10) : 0;
 
             '
-      - uuid: b611000009d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000109f6f708192a3b4c5d6e7000
         key: nifi.pg.queued_count[{#PGID}]
         name: 'PG {#PGNAME}: Filas - objetos em fila'
         type: HTTP_AGENT
@@ -253,7 +253,7 @@ zabbix_export:
             return agg;
 
             '
-      - uuid: b61100000ad4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500010af6f708192a3b4c5d6e7000
         key: nifi.pg.queued_bytes[{#PGID}]
         name: 'PG {#PGNAME}: Filas - bytes em fila'
         type: HTTP_AGENT
@@ -275,7 +275,7 @@ zabbix_export:
             10) : 0;
 
             '
-      - uuid: b61100000bd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500010bf6f708192a3b4c5d6e7000
         key: nifi.pg.flowfiles_in[{#PGID}]
         name: 'PG {#PGNAME}: FlowFiles in (5m)'
         type: HTTP_AGENT
@@ -298,7 +298,7 @@ zabbix_export:
             return r / 300;
 
             '
-      - uuid: b61100000cd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500010cf6f708192a3b4c5d6e7000
         key: nifi.pg.flowfiles_out[{#PGID}]
         name: 'PG {#PGNAME}: FlowFiles out (5m)'
         type: HTTP_AGENT
@@ -321,7 +321,7 @@ zabbix_export:
             return r / 300;
 
             '
-      - uuid: b61100000dd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500010df6f708192a3b4c5d6e7000
         key: nifi.pg.bytes_read[{#PGID}]
         name: 'PG {#PGNAME}: Bytes lidos (5m)'
         type: HTTP_AGENT
@@ -344,7 +344,7 @@ zabbix_export:
             return r / 300;
 
             '
-      - uuid: b61100000ed4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500010ef6f708192a3b4c5d6e7000
         key: nifi.pg.bytes_written[{#PGID}]
         name: 'PG {#PGNAME}: Bytes escritos (5m)'
         type: HTTP_AGENT
@@ -367,7 +367,7 @@ zabbix_export:
             return r / 300;
 
             '
-      - uuid: b61100000fd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500010ff6f708192a3b4c5d6e7000
         key: nifi.pg.proc_errors[{#PGID}]
         name: 'PG {#PGNAME}: Processadores com erro/stopped'
         type: HTTP_AGENT
@@ -388,7 +388,7 @@ zabbix_export:
             \ : '';\n  var needs = p.component && (p.component.validationErrors ||\
             \ []).length > 0;\n  if (st === 'INVALID' || needs) { bad++; }\n});\n\
             return bad;\n"
-      - uuid: b611000010d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000110f6f708192a3b4c5d6e7000
         key: nifi.pg.uptime[{#PGID}]
         name: 'PG {#PGNAME}: Uptime dos processadores (s)'
         type: HTTP_AGENT
@@ -410,7 +410,7 @@ zabbix_export:
             \ p.status.statsSnapshot;\n    var up = st.uptime ? parseInt(st.uptime,\
             \ 10) : 0;\n    if (up > max) { max = up; }\n  }\n});\nreturn max;\n"
       trigger_prototypes:
-      - uuid: b611000011d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000111f6f708192a3b4c5d6e7000
         expression: nodata(/Apache NiFi API by JS/nifi.pg.status[{#PGID}],{$NIFI.STATUS_NS_TRIGGER}m)=1
         name: 'PG {#PGNAME}: sem dados da API'
         priority: WARNING
@@ -421,7 +421,7 @@ zabbix_export:
           value: '{#PGNAME}'
         - tag: scope
           value: availability
-      - uuid: b611000012d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000112f6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS/nifi.pg.proc_errors[{#PGID}],10m)>{$NIFI.PROC_STOPPED}
         name: 'PG {#PGNAME}: processadores invalidos/parados'
         priority: AVERAGE
@@ -448,7 +448,7 @@ zabbix_export:
     - tag: target
       value: dataflow
     valuemaps:
-    - uuid: b611000013d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000113f6f708192a3b4c5d6e7000
       name: NiFi API status
       mappings:
       - value: ok
@@ -458,7 +458,7 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: b611000014d4e6f6f708192a3b4c5d6e7f
+  - uuid: bdb5000114f6f708192a3b4c5d6e7000
     template: Apache NiFi API by JS Cluster Resources
     name: Apache NiFi API by JS Cluster Resources
     description: 'Coleta de recursos do cluster NiFi:
@@ -473,7 +473,7 @@ zabbix_export:
     groups:
     - name: Templates
     items:
-    - uuid: b611000015d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000115f6f708192a3b4c5d6e7000
       key: nifi.jvm.raw
       name: 'NiFi JVM: Status (raw)'
       type: HTTP_AGENT
@@ -493,7 +493,7 @@ zabbix_export:
           return JSON.stringify(body.controller);
 
           '
-    - uuid: b611000016d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000116f6f708192a3b4c5d6e7000
       key: nifi.jvm.heap_used
       name: 'NiFi JVM: Heap usado'
       type: DEPENDENT
@@ -513,7 +513,7 @@ zabbix_export:
           return parseInt(h, 10);
 
           '
-    - uuid: b611000017d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000117f6f708192a3b4c5d6e7000
       key: nifi.jvm.heap_max
       name: 'NiFi JVM: Heap maximo'
       type: DEPENDENT
@@ -534,7 +534,7 @@ zabbix_export:
           return parseInt(h, 10);
 
           '
-    - uuid: b611000018d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000118f6f708192a3b4c5d6e7000
       key: nifi.jvm.heap_pct
       name: 'NiFi JVM: Heap %'
       type: DEPENDENT
@@ -562,7 +562,7 @@ zabbix_export:
           '
         error_handler: DISCARD_VALUE
       triggers:
-      - uuid: b611000019d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000119f6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS Cluster Resources/nifi.jvm.heap_pct,5m)>{$NIFI.HEAP_PCT}
         name: 'NiFi JVM: heap > {$NIFI.HEAP_PCT}%'
         priority: WARNING
@@ -571,7 +571,7 @@ zabbix_export:
         tags:
         - tag: scope
           value: performance
-    - uuid: b61100001ad4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500011af6f708192a3b4c5d6e7000
       key: nifi.jvm.uptime
       name: 'NiFi JVM: Uptime'
       type: DEPENDENT
@@ -592,7 +592,7 @@ zabbix_export:
           return parseInt(st, 10);
 
           '
-    - uuid: b61100001bd4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500011bf6f708192a3b4c5d6e7000
       key: nifi.jvm.gc_pct
       name: 'NiFi JVM: Tempo em GC (%)'
       type: DEPENDENT
@@ -616,7 +616,7 @@ zabbix_export:
 
           '
         error_handler: DISCARD_VALUE
-    - uuid: b61100001cd4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500011cf6f708192a3b4c5d6e7000
       key: nifi.cluster.nodes
       name: 'NiFi Cluster: Nodes'
       type: DEPENDENT
@@ -635,7 +635,7 @@ zabbix_export:
           return nodes.length;
 
           '
-    - uuid: b61100001dd4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500011df6f708192a3b4c5d6e7000
       key: nifi.cluster.nodes_connected
       name: 'NiFi Cluster: Nodes conectados'
       type: DEPENDENT
@@ -653,7 +653,7 @@ zabbix_export:
           \ || []).join(',');\n  if (String(s).toLowerCase() !== 'disconnected' &&\
           \ String(s).toLowerCase() !== 'offline') { ok++; }\n});\nreturn ok;\n"
         error_handler: DISCARD_VALUE
-    - uuid: b61100001ed4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500011ef6f708192a3b4c5d6e7000
       key: nifi.storage.raw
       name: 'NiFi Storage: Raw (repositories)'
       type: HTTP_AGENT
@@ -676,7 +676,7 @@ zabbix_export:
           \ || r.name || 'repo',\n      'used': r.usedBytes || 0,\n      'free': r.freeBytes\
           \ || 0,\n      'limit': r.limitBytes || 0\n    });\n  });\n});\nreturn JSON.stringify({\
           \ 'repositories': out });\n"
-    - uuid: b61100001fd4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500011ff6f708192a3b4c5d6e7000
       key: nifi.storage.used_pct
       name: 'NiFi Storage: Uso maximo dos repositorios (%)'
       type: DEPENDENT
@@ -693,7 +693,7 @@ zabbix_export:
           \ (r) {\n  if (r.limit > 0) {\n    var pct = 100 * r.used / r.limit;\n \
           \   if (pct > max) { max = pct; }\n  }\n});\nreturn max;\n"
       triggers:
-      - uuid: b611000020d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000120f6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS Cluster Resources/nifi.storage.used_pct,5m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
         name: 'NiFi Storage: repositorio acima de {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
         priority: WARNING
@@ -703,7 +703,7 @@ zabbix_export:
         tags:
         - tag: scope
           value: capacity
-    - uuid: b611000021d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000121f6f708192a3b4c5d6e7000
       key: nifi.cluster.threads_total
       name: 'NiFi Cluster: Threads totais'
       type: HTTP_AGENT
@@ -726,7 +726,7 @@ zabbix_export:
 
           '
       triggers:
-      - uuid: b611000022d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000122f6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS Cluster Resources/nifi.cluster.threads_total,10m)>{$NIFI.THREADS_MAX}
           and {$NIFI.THREADS_MAX}>0
         name: 'NiFi: threads ativas acima do limite'
@@ -740,7 +740,7 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: b611000023d4e6f6f708192a3b4c5d6e7f
+  - uuid: bdb5000123f6f708192a3b4c5d6e7000
     template: Apache NiFi API by JS Queues
     name: Apache NiFi API by JS Queues
     description: 'Coleta de filas (connections) por Process Group descoberto:
@@ -755,7 +755,7 @@ zabbix_export:
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: b611000024d4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb5000124f6f708192a3b4c5d6e7000
       key: nifi.discovery.queues
       name: Descoberta de filas por PG
       type: HTTP_AGENT
@@ -778,7 +778,7 @@ zabbix_export:
           \    '{#SRC}': c.component.source && c.component.source.name ? c.component.source.name\
           \ : ''\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
       item_prototypes:
-      - uuid: b611000025d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000125f6f708192a3b4c5d6e7000
         key: nifi.queue.raw[{#CONNID}]
         name: 'Fila {#CONNNAME}: Status (raw)'
         type: HTTP_AGENT
@@ -798,7 +798,7 @@ zabbix_export:
             return JSON.stringify(q);
 
             '
-      - uuid: b611000026d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000126f6f708192a3b4c5d6e7000
         key: nifi.queue.objects[{#CONNID}]
         name: 'Fila {#CONNNAME}: Objetos em fila'
         type: HTTP_AGENT
@@ -821,7 +821,7 @@ zabbix_export:
             return parseInt(n, 10) || 0;
 
             '
-      - uuid: b611000027d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000127f6f708192a3b4c5d6e7000
         key: nifi.queue.bytes[{#CONNID}]
         name: 'Fila {#CONNNAME}: Bytes em fila'
         type: HTTP_AGENT
@@ -845,7 +845,7 @@ zabbix_export:
             return parseInt(n, 10) || 0;
 
             '
-      - uuid: b611000028d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000128f6f708192a3b4c5d6e7000
         key: nifi.queue.bp_objects_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure objetos (%)'
         type: HTTP_AGENT
@@ -873,7 +873,7 @@ zabbix_export:
             return 100 * obj / bp;
 
             '
-      - uuid: b611000029d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000129f6f708192a3b4c5d6e7000
         key: nifi.queue.bp_bytes_pct[{#CONNID}]
         name: 'Fila {#CONNNAME}: Back pressure bytes (%)'
         type: HTTP_AGENT
@@ -901,7 +901,7 @@ zabbix_export:
             return 100 * bytes / bp;
 
             '
-      - uuid: b61100002ad4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500012af6f708192a3b4c5d6e7000
         key: nifi.queue.oldest[{#CONNID}]
         name: 'Fila {#CONNNAME}: Idade do dado mais antigo (s)'
         type: HTTP_AGENT
@@ -946,7 +946,7 @@ zabbix_export:
       - lld_macro: '{#DEST}'
         path: $.dest
       trigger_prototypes:
-      - uuid: b61100002bd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500012bf6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_objects_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
         name: 'Fila {#CONNNAME}: back pressure objetos > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
         priority: AVERAGE
@@ -958,7 +958,7 @@ zabbix_export:
           value: '{#CONNNAME}'
         - tag: scope
           value: performance
-      - uuid: b61100002cd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500012cf6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_bytes_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
         name: 'Fila {#CONNNAME}: back pressure bytes > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
         priority: AVERAGE
@@ -970,7 +970,7 @@ zabbix_export:
           value: '{#CONNNAME}'
         - tag: scope
           value: performance
-      - uuid: b61100002dd4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb500012df6f708192a3b4c5d6e7000
         expression: min(/Apache NiFi API by JS Queues/nifi.queue.oldest[{#CONNID}],10m)>{$NIFI.QUEUE_AGE_MIN}
         name: 'Fila {#CONNNAME}: dados parados'
         priority: AVERAGE
@@ -985,7 +985,7 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: b61100002ed4e6f6f708192a3b4c5d6e7f
+  - uuid: bdb500012ef6f708192a3b4c5d6e7000
     template: Apache NiFi API by JS Counters
     name: Apache NiFi API by JS Counters
     description: 'Descoberta e coleta de counters do NiFi via /counters.
@@ -996,7 +996,7 @@ zabbix_export:
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: b61100002fd4e6f6f708192a3b4c5d6e7f
+    - uuid: bdb500012ff6f708192a3b4c5d6e7000
       key: nifi.discovery.counters
       name: Descoberta de counters
       type: HTTP_AGENT
@@ -1019,7 +1019,7 @@ zabbix_export:
           \ String(id), '{#COUNTERNAME}': String(nm) });\n});\nreturn JSON.stringify({\
           \ 'data': rows });\n"
       item_prototypes:
-      - uuid: b611000030d4e6f6f708192a3b4c5d6e7f
+      - uuid: bdb5000130f6f708192a3b4c5d6e7000
         key: nifi.counter.value[{#COUNTERNAME}]
         name: 'Counter {#COUNTERNAME}: Valor'
         type: HTTP_AGENT
@@ -1056,4 +1056,4 @@ zabbix_export:
       version: '1.0'
   template_groups:
   - name: Templates
-    uuid: b611000031d4e6f6f708192a3b4c5d6e7f
+    uuid: bdb5000131f6f708192a3b4c5d6e7000
