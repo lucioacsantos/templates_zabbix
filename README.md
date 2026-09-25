@@ -1,7 +1,7 @@
 # templates_zabbix
 
 Templates Zabbix com JavaScript embutido para monitorar APIs sem agente.
-Todos usam itens HTTP agent com preprocessing JavaScript (Zabbix >= 6.0), macros
+Todos usam itens HTTP agent com preprocessing JavaScript (Zabbix >= 7.4), macros
 para URL/token/credenciais e LLD para descoberta automática de recursos.
 
 ## Templates disponíveis
@@ -22,7 +22,7 @@ Cada arquivo de export contém 4 templates:
 
 ## Requisitos
 
-- Zabbix Server/Proxy >= 6.0
+- Zabbix Server/Proxy >= 7.4
 - Conectividade HTTP(S) do Zabbix até a API monitorada
 - Credencial de leitura (Bearer token no OpenShift, usuário/senha ou token no NiFi)
 

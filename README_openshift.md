@@ -11,6 +11,6 @@ Templates Zabbix com JavaScript embutido para monitorar APIs sem agente.
 
 Documentação detalhada: [README_openshift.md (Thanos)](./README_openshift.md) | [README_nifi.md (NiFi)](./README_nifi.md)
 
-Todos usam itens HTTP agent com preprocessing JavaScript (Zabbix >= 6.0), macros
+Todos usam itens HTTP agent com preprocessing JavaScript (Zabbix >= 7.4), macros
 para URL/token/credenciais e LLD para descobrir namespaces (OpenShift) ou
 process groups/queues/counters (NiFi).

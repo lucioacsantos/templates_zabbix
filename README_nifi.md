@@ -4,7 +4,7 @@ Monitoramento de fluxos Apache NiFi via API REST (`/nifi-api`), com **JavaScript
 (coleta e processamento no lado do Zabbix). Não requer agente — apenas conectividade HTTP(S)
 do Zabbix Server/Proxy até a API do NiFi.
 
-Arquivo: `template_nifi_api.yaml` (export Zabbix 6.0, 4 templates, 23 snippets de JS validados).
+Arquivo: `template_nifi_api.yaml` (export Zabbix 7.4, 4 templates, 23 snippets de JS validados).
 
 ## Estrutura
 
