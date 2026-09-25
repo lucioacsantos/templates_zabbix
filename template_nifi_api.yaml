@@ -1,9 +1,5 @@
 zabbix_export:
-  version: '6.0'
-  date: '2026-09-25T00:00:00Z'
-  groups:
-  - name: Templates
-    uuid: b9f0b2c3d4e6f6f708192a3b4c5d6e7f0
+  version: '7.4'
   templates:
   - uuid: a1f1b2c3d4e6f6f708192a3b4c5d6e7f0
     template: Apache NiFi API by JS
@@ -34,7 +30,6 @@ zabbix_export:
       '
     groups:
     - name: Templates
-      uuid: c0ffee000001d4e6f6f708192a3b4c5d
     macros:
     - macro: '{$NIFI.URL}'
       value: https://nifi.exemplo.com:8443/nifi-api
@@ -113,7 +108,6 @@ zabbix_export:
       headers:
       - name: Content-Type
         value: application/json
-      auth_enabled: 'NO'
       timeout: '{$NIFI.TIMEOUT}s'
       retry_on_fail: 'YES'
       retry_attempt: '{$NIFI.RETRIES}'
@@ -468,6 +462,9 @@ zabbix_export:
         newvalue: Servico OK
       - value: down
         newvalue: Servico DOWN
+    vendor:
+      name: Internal
+      version: '1.0'
   - uuid: a1f0b2c3d4e6f6f708192a3b4c5d6e7f0
     template: Apache NiFi API by JS Cluster Resources
     name: Apache NiFi API by JS Cluster Resources
@@ -482,7 +479,6 @@ zabbix_export:
       '
     groups:
     - name: Templates
-      uuid: c0ffee000002d4e6f6f708192a3b4c5d
     items:
     - uuid: a5f0b2c3d4e6f6f708192a3b4c5d6e7f0
       key: nifi.jvm.raw
@@ -748,6 +744,9 @@ zabbix_export:
         tags:
         - tag: scope
           value: performance
+    vendor:
+      name: Internal
+      version: '1.0'
   - uuid: b1f0b2c3d4e6f6f708192a3b4c5d6e7f0
     template: Apache NiFi API by JS Queues
     name: Apache NiFi API by JS Queues
@@ -762,7 +761,6 @@ zabbix_export:
       '
     groups:
     - name: Templates
-      uuid: c0ffee000003d4e6f6f708192a3b4c5d
     discovery_rules:
     - uuid: b2f0b2c3d4e6f6f708192a3b4c5d6e7f0
       key: nifi.discovery.queues
@@ -987,6 +985,9 @@ zabbix_export:
             value: '{#CONNNAME}'
           - tag: scope
             value: performance
+    vendor:
+      name: Internal
+      version: '1.0'
   - uuid: c1f0b2c3d4e6f6f708192a3b4c5d6e7f0
     template: Apache NiFi API by JS Counters
     name: Apache NiFi API by JS Counters
@@ -997,7 +998,6 @@ zabbix_export:
       '
     groups:
     - name: Templates
-      uuid: c0ffee000004d4e6f6f708192a3b4c5d
     discovery_rules:
     - uuid: c2f0b2c3d4e6f6f708192a3b4c5d6e7f0
       key: nifi.discovery.counters
@@ -1052,3 +1052,9 @@ zabbix_export:
             return parseInt(v, 10) || 0;
 
             '
+    vendor:
+      name: Internal
+      version: '1.0'
+  template_groups:
+  - name: Templates
+    uuid: b9f0b2c3d4e6f6f708192a3b4c5d6e7f0
