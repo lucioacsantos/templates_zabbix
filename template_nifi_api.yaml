@@ -109,9 +109,6 @@ zabbix_export:
       - name: Content-Type
         value: application/json
       timeout: '{$NIFI.TIMEOUT}s'
-      retry_on_fail: 'YES'
-      retry_attempt: '{$NIFI.RETRIES}'
-      retry_interval: 5s
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -142,9 +139,6 @@ zabbix_export:
       request_method: GET
       url: '{$NIFI.URL}/controller/bulletin-board'
       timeout: '{$NIFI.TIMEOUT}s'
-      retry_on_fail: 'YES'
-      retry_attempt: '{$NIFI.RETRIES}'
-      retry_interval: 5s
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -177,16 +171,9 @@ zabbix_export:
       request_method: GET
       url: '{$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}'
       timeout: '{$NIFI.TIMEOUT}s'
-      retry_on_fail: 'YES'
-      retry_attempt: '{$NIFI.RETRIES}'
-      retry_interval: 5s
       delay: 1h
       lifetime: 30d
       description: Descobre Process Groups filhos do grupo raiz (ou usa {$NIFI.PROCESS_GROUPS}).
-      lld_macros:
-      - macro: '{#PGID}'
-      - macro: '{#PGNAME}'
-      - macro: '{#PGPATH}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -447,6 +434,13 @@ zabbix_export:
           value: '{#PGNAME}'
         - tag: scope
           value: availability
+      lld_macro_paths:
+      - lld_macro: '{#PGID}'
+        path: $.pgid
+      - lld_macro: '{#PGNAME}'
+        path: $.pgname
+      - lld_macro: '{#PGPATH}'
+        path: $.pgpath
     tags:
     - tag: class
       value: software
@@ -772,13 +766,6 @@ zabbix_export:
       delay: 5m
       lifetime: 30d
       description: Depende da LLD de PGs do master (macro {#PGID}).
-      lld_macros:
-      - macro: '{#PGID}'
-      - macro: '{#PGNAME}'
-      - macro: '{#CONNID}'
-      - macro: '{#CONNNAME}'
-      - macro: '{#SRC}'
-      - macro: '{#DEST}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -985,6 +972,19 @@ zabbix_export:
             value: '{#CONNNAME}'
           - tag: scope
             value: performance
+      lld_macro_paths:
+      - lld_macro: '{#PGID}'
+        path: $.pgid
+      - lld_macro: '{#PGNAME}'
+        path: $.pgname
+      - lld_macro: '{#CONNID}'
+        path: $.connid
+      - lld_macro: '{#CONNNAME}'
+        path: $.connname
+      - lld_macro: '{#SRC}'
+        path: $.src
+      - lld_macro: '{#DEST}'
+        path: $.dest
     vendor:
       name: Internal
       version: '1.0'
@@ -1010,9 +1010,6 @@ zabbix_export:
       lifetime: 30d
       description: Descobre counters registrados (filtra por {$NIFI.COUNTERS_FILTER}
         regex).
-      lld_macros:
-      - macro: '{#COUNTERID}'
-      - macro: '{#COUNTERNAME}'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -1052,6 +1049,11 @@ zabbix_export:
             return parseInt(v, 10) || 0;
 
             '
+      lld_macro_paths:
+      - lld_macro: '{#COUNTERID}'
+        path: $.counterid
+      - lld_macro: '{#COUNTERNAME}'
+        path: $.countername
     vendor:
       name: Internal
       version: '1.0'
