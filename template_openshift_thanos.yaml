@@ -32,7 +32,6 @@ zabbix_export:
       Querier.
 
       '
-    vendor: Internal
     groups:
     - name: Templates
       uuid: c0ffee000001d4e6f6f708192a3b4c5d
@@ -240,7 +239,6 @@ zabbix_export:
       - Limites de ResourceQuota do namespace
 
       '
-    vendor: Internal
     groups:
     - name: Templates
       uuid: c0ffee000002d4e6f6f708192a3b4c5d
@@ -538,7 +536,6 @@ zabbix_export:
       - Restart de containers (por hora)
 
       '
-    vendor: Internal
     groups:
     - name: Templates
       uuid: c0ffee000003d4e6f6f708192a3b4c5d
@@ -766,7 +763,6 @@ zabbix_export:
       - HPA: replicas atual/min/max e util.
 
       '
-    vendor: Internal
     groups:
     - name: Templates
       uuid: c0ffee000004d4e6f6f708192a3b4c5d
