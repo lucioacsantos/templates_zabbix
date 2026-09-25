@@ -58,8 +58,9 @@ zabbix_export:
       value: '1'
       description: Validar host/SSL do endpoint (1=sim, 0=nao).
     - macro: '{$THANOS.STATUS_NS_TRIGGER}'
-      value: '3'
-      description: Ciclos com namespace down antes do trigger.
+      value: 3m
+      description: 'Ciclos/periodo com API down antes do trigger (com unidade, ex.:
+        3m).'
     - macro: '{$THANOS.CPU_LIMIT_PCT}'
       value: '90'
       description: Percentual do limite de CPU por namespace para trigger.
@@ -191,7 +192,7 @@ zabbix_export:
         path: $.mem
       trigger_prototypes:
       - uuid: e5e59bb8803d4932b23c7eabdb8280ee
-        expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER}m)=0
+        expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER})=0
         name: 'Namespace {#NSNAME}: sem targets up (down)'
         priority: WARNING
         description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
@@ -1036,7 +1037,7 @@ zabbix_export:
         path: $.namespace
       trigger_prototypes:
       - uuid: a11d1a7da3914d3b8a9502ff6ae69fea
-        expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
+        expression: min(/OpenShift Thanos API by JS Network-HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: alertas Prometheus firing'
         priority: WARNING
         description: Existem regras de alerta Prometheus em estado firing para o namespace
@@ -1048,7 +1049,7 @@ zabbix_export:
         - tag: scope
           value: notice
       - uuid: 6d56b9b3221e4b3180cd4e0d12ade110
-        expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
+        expression: min(/OpenShift Thanos API by JS Network-HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
         name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
         priority: WARNING
         description: Taxa de requisicoes (por namespace do cliente) acima de {$THANOS.EPS_MAX}
@@ -1060,7 +1061,7 @@ zabbix_export:
         - tag: scope
           value: performance
       - uuid: 638035325c2945f2afe824c5191c1ded
-        expression: min(/OpenShift Thanos API by JS Network\/HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
+        expression: min(/OpenShift Thanos API by JS Network-HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
         name: 'Namespace {#NSNAME}: HPA saturado'
         priority: WARNING
         description: Replicas atuais >= {$THANOS.HPA_MAX_PCT}% do maximo (risco de

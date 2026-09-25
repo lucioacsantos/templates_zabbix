@@ -87,8 +87,9 @@ zabbix_export:
       description: Regex (case-insensitive) para filtrar counters descobertos. Vazio
         = todos.
     - macro: '{$NIFI.STATUS_NS_TRIGGER}'
-      value: '3'
-      description: Ciclos com API down antes do trigger.
+      value: 3m
+      description: 'Ciclos/periodo com API down antes do trigger (com unidade, ex.:
+        3m).'
     - macro: '{$NIFI.THREADS_MAX}'
       value: '0'
       description: Total de threads ativas para trigger (0 = desativado).
@@ -120,7 +121,7 @@ zabbix_export:
           \ ? 1 : 0\n});\n"
       triggers:
       - uuid: c924980ec265467b83e9438b69182a83
-        expression: nodata(/Apache NiFi API by JS/nifi.api.status,{$NIFI.STATUS_NS_TRIGGER}m)=1
+        expression: nodata(/Apache NiFi API by JS/nifi.api.status,{$NIFI.STATUS_NS_TRIGGER})=1
         name: 'NiFi API: sem dados (servico indisponivel)'
         priority: HIGH
         description: A API do NiFi nao respondeu nos ultimos {$NIFI.STATUS_NS_TRIGGER}
@@ -411,7 +412,7 @@ zabbix_export:
             \ 10) : 0;\n    if (up > max) { max = up; }\n  }\n});\nreturn max;\n"
       trigger_prototypes:
       - uuid: c7de480d6d2e4942b50e8eecab1837ac
-        expression: nodata(/Apache NiFi API by JS/nifi.pg.status[{#PGID}],{$NIFI.STATUS_NS_TRIGGER}m)=1
+        expression: nodata(/Apache NiFi API by JS/nifi.pg.status[{#PGID}],{$NIFI.STATUS_NS_TRIGGER})=1
         name: 'PG {#PGNAME}: sem dados da API'
         priority: WARNING
         description: Process Group {#PGNAME} ({#PGID}) nao respondeu via API.
