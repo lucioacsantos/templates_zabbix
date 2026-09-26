@@ -1,47 +1,41 @@
 # Monitoramento OpenShift via Thanos API (by JS)
 
-Este template permite o monitoramento completo de namespaces e containers do OpenShift utilizando a API do Thanos (Querier), eliminando a necessidade de Zabbix Agents nos pods.
+Este template fornece visibilidade completa do ecossistema OpenShift, desde a infraestrutura de pods e containers até os sinais dourados (Golden Signals) de aplicação, utilizando a API do Thanos (Querier).
 
-## 🚀 Funcionalidades
+## 🚀 Funcionalidades e Arquitetura
 
-### 1. Monitoramento de Namespaces (Lvl 1)
-- **Disponibilidade**: Status de targets `up` por namespace.
-- **Recursos**: 
-  - Consumo de CPU e Memória vs Limites (`Limits`).
-  - Consumo de CPU e Memória vs Requisições (`Requests`).
-  - Monitoramento de `ResourceQuota` (Hard limits) do namespace.
-- **Pods**: 
-  - Contagem de pods por fase (`Running`, `Pending`, `Failed`, `Unknown`).
-  - Alerta de pods não-rodando e pods pendentes.
-  - Taxa de restarts de containers (estatística de 1h).
-- **HPA (Horizontal Pod Autoscaler)**:
-  - Réplicas atuais vs desejadas.
-  - Percentual de utilização do HPA (Saturação).
-- **Rede e API**:
-  - Tráfego de rede RX/TX.
-  - Taxa de requisições ao API Server do Kubernetes.
-  - Integração com alertas do Prometheus (`firing alerts`).
+O monitoramento é dividido em templates dependentes para modularização e escalabilidade:
 
-### 2. Monitoramento de Containers (Lvl 2 - SRE)
-- **Descoberta Automática (LLD)**: Identifica containers individualmente por pod.
-- **CPU Throttling**: Monitora a perda de performance por limitação de CPU em cada container.
-- **Uso de Memória**: Acompanhamento do `working_set_bytes` por container para detecção precoce de riscos de OOMKill.
+### 1. Infraestrutura e Recursos (Core)
+- **Namespaces**: Descoberta automática e status de disponibilidade.
+- **Recursos**: Monitoramento de CPU e Memória vs Limits e Requests.
+- **Pods**: Ciclo de vida dos pods (Running, Pending, Failed) e taxa de restarts.
+- **HPA**: Saturação e escalonamento de réplicas.
+- **Containers**: LLD individual por container com detecção de **CPU Throttling**.
+
+### 2. Golden Signals de Aplicação (L7)
+- **Latência**: Acompanhamento do p95 de tempo de resposta HTTP.
+- **Erros**: Taxa de erro HTTP 5xx em tempo real.
+- **Tráfego**: Volume de requisições por segundo (RPS).
+
+### 3. Persistência e Eventos (SRE)
+- **Storage**: Monitoramento de uso de volumes persistentes (PVC) com alerta de disco cheio (>85%).
+- **Eventos**: Detecção imediata de **OOMKills** (Out-of-Memory) por namespace.
 
 ## ⚙️ Configuração e Macros
 
-Para configurar o template, defina as seguintes macros no host ou no template:
-
 | Macro | Valor Sugerido | Descrição |
 |---|---|---|
-| `{$THANOS.URL}` | `https://thanos-querier...` | URL base do Thanos Querier (sem barra final). |
+| `{$THANOS.URL}` | `https://thanos-querier...` | URL base do Thanos Querier. |
 | `{$THANOS.TOKEN}` | `Bearer <token>` | Token de Service Account com permissão de leitura. |
-| `{$THANOS.NAMESPACES}` | `ns1,ns2` | Lista de namespaces (se vazio, usa LLD via query `up`). |
-| `{$THANOS.STEP}` | `60s` | Intervalo de tempo para as queries PromQL. |
-| `{$THANOS.CPU_LIMIT_PCT}` | `90` | Gatilho de alerta para uso de CPU (% do limite). |
-| `{$THANOS.MEM_LIMIT_PCT}` | `90` | Gatilho de alerta para uso de Memória (% do limite). |
+| `{$THANOS.NAMESPACES}` | `ns1,ns2` | Lista de namespaces (vazio = LLD automática). |
+| `{$THANOS.STEP}` | `60s` | Intervalo para as queries PromQL. |
+| `{$THANOS.CPU_LIMIT_PCT}` | `90` | Trigger de CPU (% do limite). |
+| `{$THANOS.MEM_LIMIT_PCT}` | `90` | Trigger de Memória (% do limite). |
 | `{$THANOS.EPS_MAX}` | `1000` | Limite de requisições ao API Server (rps). |
 
 ## 🛠️ Requisitos
-- **Zabbix**: Versão 6.0 ou superior (recomendado 7.4).
-- **Conectividade**: O Zabbix Server/Proxy deve ter alcance HTTP(S) ao endpoint do Thanos Querier.
-- **Permissões**: O token fornecido deve ter permissão de `cluster-reader` ou similar no OpenShift.
+- **Zabbix**: Versão 6.0+ (recomendado 7.4).
+- **Conectividade**: Acesso HTTP(S) do Zabbix Server/Proxy ao Thanos Querier.
+- **Permissões**: Token com role `cluster-reader`.
+

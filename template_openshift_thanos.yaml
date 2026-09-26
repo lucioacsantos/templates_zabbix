@@ -4,28 +4,9 @@ zabbix_export:
   - uuid: ebcc94cdbd12404ea91e28711fe6259a
     template: OpenShift Thanos API by JS
     name: OpenShift Thanos API by JS
-    description: 'Template master para monitoramento de namespaces OpenShift via API
-      Thanos/Prometheus
-
-      (Thanos Querier). Coleta e processamento feitos com JavaScript embutido (item
-      HTTP + JS),
-
-      sem necessidade de Zabbix agent.
-
-
-      A LLD descobre namespaces via query `up` (job kubernetes-pods) ou usa uma lista
-      estatica
-
-      definida em {$THANOS.NAMESPACES}. Os templates dependentes agregam recursos,
-      pods,
-
-      rede, quota e HPA por namespace.
-
-
-      Requer Zabbix Server/Proxy >= 6.0 e conectividade HTTP(S) do Zabbix ate o Thanos
-      Querier.
-
-      '
+    description: 'Template master para monitoramento de namespaces OpenShift via API Thanos/Prometheus.
+      
+      Este template atua como master e descobre namespaces, vinculando automaticamente os templates dependentes de Recursos, Pods, Rede, Application, Storage e Events.'
     groups:
     - name: Templates
     macros:
@@ -37,14 +18,13 @@ zabbix_export:
       description: Bearer token de service account com permissao de leitura das metricas.
     - macro: '{$THANOS.NAMESPACES}'
       value: ''
-      description: Lista estatica de namespaces separados por virgula (regex). Vazio
-        = descobrir via query `up`.
+      description: Lista estatica de namespaces separados por virgula (regex). Vazio = descobrir via query `up`.
     - macro: '{$THANOS.STEP}'
       value: 60s
       description: Step das queries PromQL (range/vector).
     - macro: '{$THANOS.TIMEOUT}'
       value: 15s
-      description: 'Timeout das requisicoes HTTP (com unidade, ex.: 15s ou {$X}s).'
+      description: 'Timeout das requisicoes HTTP (com unidade, ex.: 15s ou {$THANOS.TIMEOUT}s).'
     - macro: '{$THANOS.RETRIES}'
       value: '2'
       description: Tentativas extras em caso de falha.
@@ -59,8 +39,7 @@ zabbix_export:
       description: Validar host/SSL do endpoint (1=sim, 0=nao).
     - macro: '{$THANOS.STATUS_NS_TRIGGER}'
       value: 3m
-      description: 'Ciclos/periodo com API down antes do trigger (com unidade, ex.:
-        3m).'
+      description: 'Ciclos/periodo com API down antes do trigger (com unidade, ex.: 3m).'
     - macro: '{$THANOS.CPU_LIMIT_PCT}'
       value: '90'
       description: Percentual do limite de CPU por namespace para trigger.
@@ -105,13 +84,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos\
-          \ API status: ' + body.status; }\nvar ns = {};\nvar total = 0;\nvar up =\
-          \ 0;\nbody.data.result.forEach(function (r) {\n  total++;\n  if (parseFloat(r.value[1])\
-          \ > 0) { up++; }\n  var n = r.metric.namespace;\n  if (n) { ns[n] = 1; }\n\
-          });\nreturn JSON.stringify({ 'status': 'success', 'targets_total': total,\
-          \ 'targets_up': up, 'targets_down': total - up, 'namespaces': Object.keys(ns).sort()\
-          \ });\n"
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API status: ' + body.status; }\nvar ns = {};\nvar total = 0;\nvar up = 0;\nbody.data.result.forEach(function (r) {\n  total++;\n  if (parseFloat(r.value[1]) > 0) { up++; }\n  var n = r.metric.namespace;\n  if (n) { ns[n] = 1; }\n});\nreturn JSON.stringify({ 'status': 'success', 'targets_total': total, 'targets_up': up, 'targets_down': total - up, 'namespaces': Object.keys(ns).sort() });\n"
       triggers:
       - uuid: 2e4006ad05fe436e9ce4236dfc9aa060
         expression: find(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,1m,"regexp","[Ff][Aa][Ll][Hh][Aa]|[Dd][Oo][Ww][Nn]")=1
@@ -136,23 +109,11 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
-      description: Descobre namespaces alvo via query `up`; usa {$THANOS.NAMESPACES}
-        se definido.
+      description: Descobre namespaces alvo via query `up`; usa {$THANOS.NAMESPACES} se definido.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var STATIC = '{$THANOS.NAMESPACES}';\nvar CPU_MIN = parseFloat('{$THANOS.NS_CPU_LIMIT}')\
-          \ || 0;\nvar MEM_MIN = parseFloat('{$THANOS.NS_MEM_LIMIT_GT}') || 0;\nvar\
-          \ nsSet = {};\nif (STATIC && STATIC.trim() !== '') {\n  STATIC.split(',').forEach(function\
-          \ (s) { nsSet[s.trim()] = { cpu: 0, mem: 0 }; });\n}\nvar body = JSON.parse(value);\n\
-          if (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status;\
-          \ }\nbody.data.result.forEach(function (r) {\n  var n = r.metric.namespace;\n\
-          \  if (n && !nsSet[n]) { nsSet[n] = { cpu: 0, mem: 0 }; }\n});\nbody.data.result.forEach(function\
-          \ (r) {\n  var q = r.metric.quota || '';\n  var m = /(?:cpu=(\\d+(?:\\.\\\
-          d+)?))/.exec(q);\n  if (m) { r._cpu = parseFloat(m[1]); }\n});\nvar rows\
-          \ = [];\nObject.keys(nsSet).sort().forEach(function (n) {\n  rows.push({\n\
-          \    '{#NSNAME}': n,\n    '{#NSCPUQUOTA}': nsSet[n].cpu,\n    '{#NSMEMQUOTA}':\
-          \ nsSet[n].mem\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
+        - "var STATIC = '{$THANOS.NAMESPACES}';\nvar CPU_MIN = parseFloat('{$THANOS.NS_CPU_LIMIT}') || 0;\nvar MEM_MIN = parseFloat('{$THANOS.NS_MEM_LIMIT_GT}') || 0;\nvar nsSet = {};\nif (STATIC && STATIC.trim() !== '') {\n  STATIC.split(',').forEach(function (s) { nsSet[s.trim()] = { cpu: 0, mem: 0 }; });\n}\nvar body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nbody.data.result.forEach(function (r) {\n  var n = r.metric.namespace;\n  if (n && !nsSet[n]) { nsSet[n] = { cpu: 0, mem: 0 }; }\n});\nvar rows = [];\nObject.keys(nsSet).sort().forEach(function (n) {\n  rows.push({\n    '{#NSNAME}': n,\n    '{#NSCPUQUOTA}': nsSet[n].cpu,\n    '{#NSMEMQUOTA}': nsSet[n].mem\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
       item_prototypes:
       - uuid: 8a50915bdcc54963bb16a99a593393df
         key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
@@ -170,33 +131,13 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            var v = 0;
-
-            body.data.result.forEach(function (r) { if (parseFloat(r.value[1]) > 0)
-            { v++; } });
-
-            return v;
-
-            '
-      lld_macro_paths:
-      - lld_macro: '{#NSNAME}'
-        path: $.namespace
-      - lld_macro: '{#NSCPUQUOTA}'
-        path: $.cpu
-      - lld_macro: '{#NSMEMQUOTA}'
-        path: $.mem
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } var v = 0; body.data.result.forEach(function (r) { if (parseFloat(r.value[1]) > 0) { v++; } }); return v;'
       trigger_prototypes:
       - uuid: e5e59bb8803d4932b23c7eabdb8280ee
         expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER})=0
         name: 'Namespace {#NSNAME}: sem targets up (down)'
         priority: WARNING
-        description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
-          minutos.
+        description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER} minutos.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -211,7 +152,7 @@ zabbix_export:
     - tag: target
       value: thanos
     valuemaps:
-    - uuid: cc73ea27641e425ab3cf28b5eedf58a3
+    - uuid: cc73ea27641e45ab3cf28b5eedf58a3
       name: Thanos API status
       mappings:
       - value: OK
@@ -221,18 +162,11 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
+
   - uuid: 917ae0643ae444f388b63ba3ad6054b2
     template: OpenShift Thanos API by JS Resource Limits
     name: OpenShift Thanos API by JS Resource Limits
-    description: 'Coleta por namespace (descoberto pelo template master):
-
-      - CPU/Memoria usada e % do limite (container)
-
-      - CPU/Memoria por Request (informativo)
-
-      - Limites de ResourceQuota do namespace
-
-      '
+    description: 'Coleta por namespace: CPU/Memoria usada, % do limite, Request e ResourceQuota.'
     groups:
     - name: Templates
     items:
@@ -266,7 +200,6 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 5m
       lifetime: 30d
-      description: Item de suporte para manter a LLD de recursos (dependente do master).
       item_prototypes:
       - uuid: 561f453c2f214093a5c4f5ae79f96e43
         key: thanos.namespace_nsname_cpu_usada_millicores[{#NSNAME}]
@@ -277,7 +210,7 @@ zabbix_export:
         trends: 30d
         units: m
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=sum(namespace_workload_pod%3Akube_pod_owner%3Arelabel)%20*%200%20%2B%20sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))'
+        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D~%22{#NSNAME}%22%2Ccontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D%5B{$THANOS.STEP}%5D))'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -285,15 +218,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? (parseFloat(body.data.result[0].value[1])
-            * 1000) : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? (parseFloat(body.data.result[0].value[1]) * 1000) : 0;'
       - uuid: fef4e0dd620c4bf1b900e6a34ba1c75f
         key: thanos.namespace_nsname_memoria_usada_bytes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria usada (bytes)'
@@ -311,15 +236,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: 93c8d8dc2ee147fcb2cf666acb740f4c
         key: thanos.namespace_nsname_cpu_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do limite'
@@ -337,18 +254,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var num = parseFloat(body.data.result[0].value[1]) * 100;
-
-            return isNaN(num) ? 0 : num;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length)) { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100; return isNaN(num) ? 0 : num;'
       - uuid: 239e4300c8564adeb4715d08552bc45b
         key: thanos.namespace_nsname_memoria_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do limite'
@@ -366,18 +272,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var num = parseFloat(body.data.result[0].value[1]) * 100;
-
-            return isNaN(num) ? 0 : num;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length)) { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100; return isNaN(num) ? 0 : num;'
       - uuid: 5692df8dd8f24406b93a47720ed1fabb
         key: thanos.namespace_nsname_cpu_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do Request'
@@ -395,18 +290,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var num = parseFloat(body.data.result[0].value[1]) * 100;
-
-            return isNaN(num) ? 0 : num;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length)) { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100; return isNaN(num) ? 0 : num;'
       - uuid: e599d18e88f040bb9210a4dd51794e1a
         key: thanos.namespace_nsname_memoria_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do Request'
@@ -424,19 +308,8 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var num = parseFloat(body.data.result[0].value[1]) * 100;
-
-            return isNaN(num) ? 0 : num;
-
-            '
-      - uuid: 99b918487a244fca9c9cb95bd0d01b0b
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length)) { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100; return isNaN(num) ? 0 : num;'
+      - uuid: 99b918487a24fca9c9cb95bd0d01b0b
         key: thanos.namespace_nsname_quota_de_cpu_cores[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de CPU (cores)'
         type: HTTP_AGENT
@@ -453,15 +326,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: 0a72ddc6ae854514b751adf2e3e2c84e
         key: thanos.namespace_nsname_quota_de_memoria_bytes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de memoria (bytes)'
@@ -479,15 +344,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       lld_macro_paths:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
@@ -496,8 +353,7 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
         priority: WARNING
-        description: Consumo de CPU do namespace {#NSNAME} acima do percentual configurado
-          do limite (throttling provavel).
+        description: Consumo de CPU do namespace {#NSNAME} acima do percentual configurado do limite (throttling provavel).
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -508,8 +364,7 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS Resource Limits/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do limite'
         priority: WARNING
-        description: Consumo de memoria do namespace {#NSNAME} proximo do limite (risco
-          de OOMKill).
+        description: Consumo de memoria do namespace {#NSNAME} proximo do limite (risco de OOMKill).
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -519,18 +374,11 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: cc6e0859e0b34b86b64403efa11eb534
+
+  - uuid: cc6e0859e0b34b68b64403efa11eb534
     template: OpenShift Thanos API by JS Pods
     name: OpenShift Thanos API by JS Pods
-    description: 'Coleta por namespace (descoberto pelo template master):
-
-      - Pods por fase (Running, Pending, Failed, Unknown)
-
-      - Pods nao-Running
-
-      - Restart de containers (por hora)
-
-      '
+    description: 'Coleta por namespace: Pods por fase, Pods nao-Running e Restarts de containers.'
     groups:
     - name: Templates
     discovery_rules:
@@ -546,9 +394,8 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 5m
       lifetime: 30d
-      description: Item de suporte para manter a LLD (dependente do master).
       item_prototypes:
-      - uuid: 29714825f51c41cfb30e9795285c9ded
+      - uuid: 29714825f1c41cfb30e9795285c9ded
         key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods rodando'
         type: HTTP_AGENT
@@ -564,15 +411,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: 310a99c1615a47ea8da267ab8d1285db
         key: thanos.namespace_nsname_pods_pendentes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods pendentes'
@@ -589,15 +428,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: ba2f8102a8b24a6a9d2cb02929c10534
         key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods com falha'
@@ -614,15 +445,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: 6f9b06a7d6364a06bf2bf41128220ca1
         key: thanos.namespace_nsname_pods_desconhecidos[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods desconhecidos'
@@ -639,15 +462,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: f860a777b02b487c8f47ef94994567f9
         key: thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods nao rodando'
@@ -664,15 +479,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1])
-            : 0;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: 22e0e3107a094a7b9069c5b87fbafe14
         key: thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Restarts de containers (1h)'
@@ -690,18 +497,7 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length)) { return 0; } var v = parseFloat(body.data.result[0].value[1]); return isNaN(v) ? 0 : v;'
       lld_macro_paths:
       - lld_macro: '{#NSNAME}'
         path: $.namespace
@@ -710,8 +506,7 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: pods pendentes'
         priority: AVERAGE
-        description: Existem pods em fase Pending no namespace {#NSNAME} (possivel
-          falta de recursos).
+        description: Existem pods em fase Pending no namespace {#NSNAME} (possivel falta de recursos).
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -722,20 +517,18 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: pods nao rodando'
         priority: AVERAGE
-        description: Existem pods nao-Running (Pending/Failed/Unknown) no namespace
-          {#NSNAME}.
+        description: Existem pods nao-Running (Pending/Failed/Unknown) no namespace {#NSNAME}.
         manual_close: 'YES'
         tags:
         - tag: namespace
           value: '{#NSNAME}'
         - tag: scope
           value: availability
-      - uuid: 0cc4ef6bdf6a4980908ff83d2e4ed064
+      - uuid: 0cc4ef6bdf6a498090ff83d2e4ed064
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
         priority: WARNING
-        description: Contadores de restart aumentaram no namespace {#NSNAME} (crashloops,
-          OOM, probes).
+        description: Contadores de restart aumentaram no namespace {#NSNAME} (crashloops, OOM, probes).
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -745,26 +538,92 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
-  - uuid: 8538380cf62840de9eb70977c4b779b4
-    template: OpenShift Thanos API by JS Network-HPA
-    name: OpenShift Thanos API by JS Network-HPA
-    description: 'Coleta por namespace (descoberto pelo template master):
 
-      - Trafego de rede (RX/TX)
-
-      - Alertas Prometheus firing
-
-      - Taxa de requisicoes ao apiserver
-
-      - HPA: replicas atual/min/max e util.
-
-      '
+  - uuid: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+    template: OpenShift Thanos API by JS Containers
+    name: OpenShift Thanos API by JS Containers
+    description: 'Coleta por namespace: Containers por pod, CPU Throttling e Memory usage.'
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: 5f5a64122dfa4df5ab5c367275c21311
-      key: thanos.discovery.namespace_nsname_rede_hpa
-      name: 'Namespace {#NSNAME}: Rede/HPA'
+    - uuid: c1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r6
+      key: thanos.discovery.namespace_nsname_containers
+      name: 'Namespace {#NSNAME}: Containers'
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_container_info%7Bnamespace%3D~%22{#NSNAME}%22%7D'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}'
+      delay: 1h
+      lifetime: 30d
+      item_prototypes:
+      - uuid: d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s6
+        key: thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}]
+        name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        units: s
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_cpu_cfs_throttled_periods_total%7Bnamespace%3D~%22{#NSNAME}%22%2Cpod%3D%22{#POD}%22%2Ccontainer%3D%22{#CONTAINER}%22%7D%5B{$THANOS.STEP}%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+      - uuid: e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t6
+        key: thanos.namespace_nsname_container_memory_usage[{#NSNAME},{#POD},{#CONTAINER}]
+        name: 'Container {#CONTAINER} (Pod {#POD}): Memoria'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        units: B
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=container_memory_working_set_bytes%7Bnamespace%3D~%22{#NSNAME}%22%2Cpod%3D%22{#POD}%22%2Ccontainer%3D%22{#CONTAINER}%22%7D'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.//data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+      trigger_prototypes:
+      - uuid: f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u6
+        expression: min(/OpenShift Thanos API by JS Containers/thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}],5m)>0.1
+        name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling detectado'
+        priority: WARNING
+        description: O container está sofrendo throttling de CPU, impactando a performance.
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: pod
+          value: '{#POD}'
+      lld_macro_paths:
+      - lld_macro: '{#NSNAME}'
+        path: $.namespace
+      - lld_macro: '{#POD}'
+        path: $.pod
+      - lld_macro: '{#CONTAINER}'
+        path: $.container
+    vendor:
+      name: Internal
+      version: '1.0'
+
+  - uuid: b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q6
+    template: OpenShift Thanos API by JS Application
+    name: OpenShift Thanos API by JS Application
+    description: 'Coleta por namespace (SRE Golden Signals): Latencia p95, Taxa de Erros HTTP 5xx e Trafego RPS.'
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p7
+      key: thanos.discovery.namespace_nsname_app
+      name: 'Namespace {#NSNAME}: Application'
       type: HTTP_AGENT
       request_method: GET
       url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
@@ -772,20 +631,17 @@ zabbix_export:
       - name: Authorization
         value: Bearer {$THANOS.TOKEN}
       timeout: '{$THANOS.TIMEOUT}'
-      delay: 5m
+      delay: 1h
       lifetime: 30d
-      description: Item de suporte para manter a LLD (dependente do master).
       item_prototypes:
-      - uuid: 65d790cfba9b484ca0185dd02bd54a77
-        key: thanos.namespace_nsname_rede_rx[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: Rede RX'
+      - uuid: d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s7
+        key: thanos.namespace_nsname_app_latency_p95[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Latencia p95 (HTTP)'
         type: HTTP_AGENT
         value_type: FLOAT
-        history: 7d
-        trends: 30d
-        units: bps
+        units: s
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_network_receive_bytes_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
+        url: '{$THANOS.URL}/api/v1/query?query=histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D)) by (le))'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -793,226 +649,15 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 39ea00e20acc4349ba72c15ac6911b2c
-        key: thanos.namespace_nsname_rede_tx[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: Rede TX'
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+      - uuid: e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t7
+        key: thanos.namespace_nsname_app_errors_rate[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Taxa de Erros (HTTP 5xx)'
         type: HTTP_AGENT
         value_type: FLOAT
-        history: 7d
-        trends: 30d
-        units: bps
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(container_network_transmit_bytes_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 358d6c00009e41b8b2ed773a7fe15461
-        key: thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: Alertas Prometheus firing'
-        type: HTTP_AGENT
-        value_type: UNSIGNED
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=count(ALERTS%7Bnamespace%3D~%22{#NSNAME}%22%2Calertstate%3D%22firing%22%7D)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: a8faaf036bbd4446bf3d3a66eaf9981b
-        key: thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: Requisicoes ao apiserver'
-        type: HTTP_AGENT
-        value_type: FLOAT
-        history: 7d
-        trends: 30d
-        units: rps
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(apiserver_request_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B5m%5D))'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 41c88e17cda347f085f50b06d4e46fb7
-        key: thanos.namespace_nsname_hpa_replicas_atuais[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: HPA replicas atuais'
-        type: HTTP_AGENT
-        value_type: FLOAT
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 45c12b169c424fbab56d48380adf096f
-        key: thanos.namespace_nsname_hpa_replicas_desejadas[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: HPA replicas desejadas'
-        type: HTTP_AGENT
-        value_type: FLOAT
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_status_desired_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 818b5de64a5747ce9965965e1e6323c9
-        key: thanos.namespace_nsname_hpa_minimo_de_replicas[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: HPA minimo de replicas'
-        type: HTTP_AGENT
-        value_type: UNSIGNED
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=min(kube_horizontalpodautoscaler_spec_min_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 01e5ecf071bb4330a53293182c2e12be
-        key: thanos.namespace_nsname_hpa_maximo_de_replicas[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: HPA maximo de replicas'
-        type: HTTP_AGENT
-        value_type: UNSIGNED
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=max(kube_horizontalpodautoscaler_spec_max_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]);
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      - uuid: 68e3ae5719c04b0fa2e5943b37553251
-        key: thanos.namespace_nsname_hpa_util[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: HPA util. (%)'
-        type: HTTP_AGENT
-        value_type: FLOAT
-        history: 7d
-        trends: 30d
         units: '%'
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20max(kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20%2F%20min(kube_horizontalpodautoscaler_spec_max_replicas%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        url: '{$THANOS.URL}/api/v1/query?query=100 * sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%2Cstatus=~%225..%22%7D%5B{$THANOS.STEP}%5D)) / sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D))'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -1020,52 +665,81 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value);
-
-            if (body.status !== ''success'') { throw ''Thanos API: '' + body.status;
-            }
-
-            if (!(body.data.result && body.data.result.length)) { return 0; }
-
-            var v = parseFloat(body.data.result[0].value[1]) * 100;
-
-            return isNaN(v) ? 0 : v;
-
-            '
-      lld_macro_paths:
-      - lld_macro: '{#NSNAME}'
-        path: $.namespace
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+      - uuid: f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u7
+        key: thanos.namespace_nsname_app_traffic_rps[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Trafego (RPS)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        units: rps
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D))'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: a11d1a7da3914d3b8a9502ff6ae69fea
-        expression: min(/OpenShift Thanos API by JS Network-HPA/thanos.namespace_nsname_alertas_prometheus_firing[{#NSNAME}],10m)>0
-        name: 'Namespace {#NSNAME}: alertas Prometheus firing'
-        priority: WARNING
-        description: Existem regras de alerta Prometheus em estado firing para o namespace
-          {#NSNAME}.
+      - uuid: g1h2i3j4k5l6m7n8o9p0q1r2s3t4u5v6
+        expression: min(/OpenShift Thanos API by JS Application/thanos.namespace_nsname_app_errors_rate[{#NSNAME}],5m)>5
+        name: 'Namespace {#NSNAME}: Taxa de erros HTTP 5xx elevada'
+        priority: HIGH
+        description: Taxa de erros acima de 5% nos últimos 5 minutos.
         manual_close: 'YES'
         tags:
         - tag: namespace
           value: '{#NSNAME}'
         - tag: scope
-          value: notice
-      - uuid: 6d56b9b3221e4b3180cd4e0d12ade110
-        expression: min(/OpenShift Thanos API by JS Network-HPA/thanos.namespace_nsname_requisicoes_ao_apiserver[{#NSNAME}],5m)>{$THANOS.EPS_MAX}
-        name: 'Namespace {#NSNAME}: taxa de requisicoes ao apiserver muito alta'
-        priority: WARNING
-        description: Taxa de requisicoes (por namespace do cliente) acima de {$THANOS.EPS_MAX}
-          rps.
-        manual_close: 'YES'
-        tags:
-        - tag: namespace
-          value: '{#NSNAME}'
-        - tag: scope
-          value: performance
-      - uuid: 638035325c2945f2afe824c5191c1ded
-        expression: min(/OpenShift Thanos API by JS Network-HPA/thanos.namespace_nsname_hpa_util[{#NSNAME}],5m)>{$THANOS.HPA_MAX_PCT}
-        name: 'Namespace {#NSNAME}: HPA saturado'
-        priority: WARNING
-        description: Replicas atuais >= {$THANOS.HPA_MAX_PCT}% do maximo (risco de
-          saturacao).
+          value: availability
+    vendor:
+      name: Internal
+      version: '1.0'
+
+  - uuid: h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6
+    template: OpenShift Thanos API by JS Storage
+    name: OpenShift Thanos API by JS Storage
+    description: 'Coleta por namespace: Uso de volumes persistentes (PVC) e alertas de disco cheio.'
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6
+      key: thanos.discovery.namespace_nsname_storage
+      name: 'Namespace {#NSNAME}: Storage'
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}'
+      delay: 1h
+      lifetime: 30d
+      item_prototypes:
+      - uuid: j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6
+        key: thanos.namespace_nsname_storage_usage_pct[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Uso de Disco (PVC %)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        units: '%'
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=100 * sum(kubelet_volume_stats_used_bytes%7Bnamespace%3D~%22{#NSNAME}%22%7D) / sum(kubelet_volume_stats_capacity_bytes%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+      trigger_prototypes:
+      - uuid: k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+        expression: min(/OpenShift Thanos API by JS Storage/thanos.namespace_nsname_storage_usage_pct[{#NSNAME}],5m)>85
+        name: 'Namespace {#NSNAME}: Uso de Disco > 85%'
+        priority: AVERAGE
+        description: Espaço em disco nos volumes do namespace {#NSNAME} próximo do limite.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -1075,8 +749,60 @@ zabbix_export:
     vendor:
       name: Internal
       version: '1.0'
+
+  - uuid: l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6
+    template: OpenShift Thanos API by JS Events
+    name: OpenShift Thanos API by JS Events
+    description: 'Coleta por namespace: Detecção de OOMKills e CrashLoops.'
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6
+      key: thanos.discovery.namespace_nsname_events
+      name: 'Namespace {#NSNAME}: Events'
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_info'
+      headers:
+      - name: Authorization
+        value: Bearer {$THANOS.TOKEN}
+      timeout: '{$THANOS.TIMEOUT}'
+      delay: 1h
+      lifetime: 30d
+      item_prototypes:
+      - uuid: n1o2p3q4r5s6t7u8v9w0x1y2z3a4b5c6
+        key: thanos.namespace_nsname_oomkills_total[{#NSNAME}]
+        name: 'Namespace {#NSNAME}: Total de OOMKills'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        request_method: GET
+        url: '{$THANOS.URL}/api/v1/query?query=sum(kube_pod_container_status_terminated_reason%7Bnamespace%3D~%22{#NSNAME}%22%2Creason%3D%22OOMKilled%22%7D)'
+        headers:
+        - name: Authorization
+          value: Bearer {$THANOS.TOKEN}
+        timeout: '{$THANOS.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+      trigger_prototypes:
+      - uuid: o1p2q3r4s5t6u7v8w9x0y1z2a3b4c5d6
+        expression: change(/OpenShift Thanos API by JS Events/thanos.namespace_nsname_oomkills_total[{#NSNAME}])>0
+        name: 'Namespace {#NSNAME}: OOMKill detectado'
+        priority: HIGH
+        description: Um ou mais containers no namespace {#NSNAME} foram mortos por falta de memória (OOMKill).
+        manual_close: 'YES'
+        tags:
+        - tag: namespace
+          value: '{#NSNAME}'
+        - tag: scope
+          value: availability
+    vendor:
+      name: Internal
+      version: '1.0'
+
   template_groups:
   - name: Templates
     uuid: 0a7a295251a0492cae0c2392d09e5e6f
   - name: Templates/applications
-    uuid: f2f33e664a8d49088bd371dcdc259b61
+    uuid: f2f33e664a8d948088bd31dcdc259b61
