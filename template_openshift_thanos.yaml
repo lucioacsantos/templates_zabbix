@@ -73,7 +73,7 @@ zabbix_export:
       history: 7d
       trends: '0'
       request_method: GET
-      url: '{$THANOS.URL}/api/v1/query?query=up%7Bjob%3D%22kubernetes-pods%22%7D'
+      url: '{$THANOS.URL}/api/v1/query?query=up'
       headers:
       - name: Authorization
         value: Bearer {$THANOS.TOKEN}
@@ -102,7 +102,7 @@ zabbix_export:
       name: Descoberta de namespaces
       type: HTTP_AGENT
       request_method: GET
-      url: '{$THANOS.URL}/api/v1/query?query=up%7Bjob%3D%22kubernetes-pods%22%7D'
+      url: '{$THANOS.URL}/api/v1/query?query=up'
       headers:
       - name: Authorization
         value: Bearer {$THANOS.TOKEN}
@@ -123,7 +123,7 @@ zabbix_export:
         history: 7d
         trends: 30d
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=count(up%7Bjob%3D%22kubernetes-pods%22%2Cnamespace%3D~%22{#NSNAME}%22%7D)%20by%20(namespace)'
+        url: '{$THANOS.URL}/api/v1/query?query=count(up%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
