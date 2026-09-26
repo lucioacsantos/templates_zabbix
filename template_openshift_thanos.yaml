@@ -152,7 +152,7 @@ zabbix_export:
     - tag: target
       value: thanos
     valuemaps:
-    - uuid: cc73ea27641e45ab3cf28b5eedf58a3
+    - uuid: b1dd27ca9d0a4e14ac41d4f3001a3719
       name: Thanos API status
       mappings:
       - value: OK
@@ -309,7 +309,7 @@ zabbix_export:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length)) { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100; return isNaN(num) ? 0 : num;'
-      - uuid: 99b918487a24fca9c9cb95bd0d01b0b
+      - uuid: 23e9614a491044b7be1fe77d56715e03
         key: thanos.namespace_nsname_quota_de_cpu_cores[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de CPU (cores)'
         type: HTTP_AGENT
@@ -395,7 +395,7 @@ zabbix_export:
       delay: 5m
       lifetime: 30d
       item_prototypes:
-      - uuid: 29714825f1c41cfb30e9795285c9ded
+      - uuid: 08f86e961ecf415aaa9ba022d3124d87
         key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods rodando'
         type: HTTP_AGENT
@@ -524,7 +524,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: availability
-      - uuid: 0cc4ef6bdf6a498090ff83d2e4ed064
+      - uuid: 8064c54d28a84a4d9da1232e3330b59a
         expression: min(/OpenShift Thanos API by JS Pods/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
         priority: WARNING
@@ -539,14 +539,14 @@ zabbix_export:
       name: Internal
       version: '1.0'
 
-  - uuid: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+  - uuid: 8bc55d6ba48b429baf6caf63b65ffebb
     template: OpenShift Thanos API by JS Containers
     name: OpenShift Thanos API by JS Containers
     description: 'Coleta por namespace: Containers por pod, CPU Throttling e Memory usage.'
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: c1d2e3f4g5h6i7j8k9l0m1n2o3p4q5r6
+    - uuid: 5a3701bf72ac428fb0efd4eb25713ac9
       key: thanos.discovery.namespace_nsname_containers
       name: 'Namespace {#NSNAME}: Containers'
       type: HTTP_AGENT
@@ -559,7 +559,7 @@ zabbix_export:
       delay: 1h
       lifetime: 30d
       item_prototypes:
-      - uuid: d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s6
+      - uuid: 1dda120570124b299888f84e4b8620cd
         key: thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}]
         name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling'
         type: HTTP_AGENT
@@ -575,7 +575,7 @@ zabbix_export:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t6
+      - uuid: 87767aa48daa4b028bef80583d0601bc
         key: thanos.namespace_nsname_container_memory_usage[{#NSNAME},{#POD},{#CONTAINER}]
         name: 'Container {#CONTAINER} (Pod {#POD}): Memoria'
         type: HTTP_AGENT
@@ -590,9 +590,9 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.//data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
+          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u6
+      - uuid: 21a9863fa78c45a78beab2055ac3ebe9
         expression: min(/OpenShift Thanos API by JS Containers/thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}],5m)>0.1
         name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling detectado'
         priority: WARNING
@@ -614,14 +614,14 @@ zabbix_export:
       name: Internal
       version: '1.0'
 
-  - uuid: b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q6
+  - uuid: b489fe9548f94cdba67eb031c1060955
     template: OpenShift Thanos API by JS Application
     name: OpenShift Thanos API by JS Application
     description: 'Coleta por namespace (SRE Golden Signals): Latencia p95, Taxa de Erros HTTP 5xx e Trafego RPS.'
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p7
+    - uuid: 1d191414a34f4f43930e8f00fe466a41
       key: thanos.discovery.namespace_nsname_app
       name: 'Namespace {#NSNAME}: Application'
       type: HTTP_AGENT
@@ -634,7 +634,7 @@ zabbix_export:
       delay: 1h
       lifetime: 30d
       item_prototypes:
-      - uuid: d1e2f3g4h5i6j7k8l9m0n1o2p3q4r5s7
+      - uuid: d9c012c35ad444fcb433d5e2bb6a6352
         key: thanos.namespace_nsname_app_latency_p95[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Latencia p95 (HTTP)'
         type: HTTP_AGENT
@@ -650,7 +650,7 @@ zabbix_export:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t7
+      - uuid: 838822d5f7254f42b75bcae627c15e08
         key: thanos.namespace_nsname_app_errors_rate[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Taxa de Erros (HTTP 5xx)'
         type: HTTP_AGENT
@@ -666,7 +666,7 @@ zabbix_export:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: f1g2h3i4j5k6l7m8n9o0p1q2r3s4t5u7
+      - uuid: 8dbae17bed364160b4f1988aeedb2e25
         key: thanos.namespace_nsname_app_traffic_rps[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Trafego (RPS)'
         type: HTTP_AGENT
@@ -683,7 +683,7 @@ zabbix_export:
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: g1h2i3j4k5l6m7n8o9p0q1r2s3t4u5v6
+      - uuid: 20367cbad18b4a2892af5a9bd39c484b
         expression: min(/OpenShift Thanos API by JS Application/thanos.namespace_nsname_app_errors_rate[{#NSNAME}],5m)>5
         name: 'Namespace {#NSNAME}: Taxa de erros HTTP 5xx elevada'
         priority: HIGH
@@ -698,14 +698,14 @@ zabbix_export:
       name: Internal
       version: '1.0'
 
-  - uuid: h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6
+  - uuid: 6a27fdfe24384f9d95ee24f5cef2fcb5
     template: OpenShift Thanos API by JS Storage
     name: OpenShift Thanos API by JS Storage
     description: 'Coleta por namespace: Uso de volumes persistentes (PVC) e alertas de disco cheio.'
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: i1j2k3l4m5n6o7p8q9r0s1t2u3v4w5x6
+    - uuid: 841f9be9dd55403781caa7460fafe559
       key: thanos.discovery.namespace_nsname_storage
       name: 'Namespace {#NSNAME}: Storage'
       type: HTTP_AGENT
@@ -718,7 +718,7 @@ zabbix_export:
       delay: 1h
       lifetime: 30d
       item_prototypes:
-      - uuid: j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6
+      - uuid: 798d8e5f6e7548c78ccdf9f960ef8fb4
         key: thanos.namespace_nsname_storage_usage_pct[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Uso de Disco (PVC %)'
         type: HTTP_AGENT
@@ -735,7 +735,7 @@ zabbix_export:
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+      - uuid: 3ee671b1245646aa9fd5d408d4e31fe4
         expression: min(/OpenShift Thanos API by JS Storage/thanos.namespace_nsname_storage_usage_pct[{#NSNAME}],5m)>85
         name: 'Namespace {#NSNAME}: Uso de Disco > 85%'
         priority: AVERAGE
@@ -750,14 +750,14 @@ zabbix_export:
       name: Internal
       version: '1.0'
 
-  - uuid: l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5a6
+  - uuid: e491bca672144bd5bc5d8956f4818607
     template: OpenShift Thanos API by JS Events
     name: OpenShift Thanos API by JS Events
     description: 'Coleta por namespace: Detecção de OOMKills e CrashLoops.'
     groups:
     - name: Templates
     discovery_rules:
-    - uuid: m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6
+    - uuid: d4ca56f5b37540958b383f42ff4c845f
       key: thanos.discovery.namespace_nsname_events
       name: 'Namespace {#NSNAME}: Events'
       type: HTTP_AGENT
@@ -770,7 +770,7 @@ zabbix_export:
       delay: 1h
       lifetime: 30d
       item_prototypes:
-      - uuid: n1o2p3q4r5s6t7u8v9w0x1y2z3a4b5c6
+      - uuid: 2d89aa9b7931458b814778f487935573
         key: thanos.namespace_nsname_oomkills_total[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Total de OOMKills'
         type: HTTP_AGENT
@@ -786,7 +786,7 @@ zabbix_export:
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length) ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: o1p2q3r4s5t6u7v8w9x0y1z2a3b4c5d6
+      - uuid: 48e7d5e927cf40538340a6a71f97f26a
         expression: change(/OpenShift Thanos API by JS Events/thanos.namespace_nsname_oomkills_total[{#NSNAME}])>0
         name: 'Namespace {#NSNAME}: OOMKill detectado'
         priority: HIGH
@@ -805,4 +805,4 @@ zabbix_export:
   - name: Templates
     uuid: 0a7a295251a0492cae0c2392d09e5e6f
   - name: Templates/applications
-    uuid: f2f33e664a8d948088bd31dcdc259b61
+    uuid: c40bd542a4294344a4d3c3dcd047bf99
