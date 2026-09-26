@@ -1,1 +1,4 @@
 log.txt
+.env
+venv/
+scripts_teste/
