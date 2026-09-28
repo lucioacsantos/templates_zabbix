@@ -18,7 +18,7 @@ zabbix_export:
       description: Bearer token de service account com permissao de leitura das metricas.
     - macro: '{$THANOS.NAMESPACES}'
       value: ''
-      description: Lista estatica de namespaces separados por virgula (regex). Vazio = descobrir via query `up`.
+      description: 'Filtro de namespaces: lista separada por virgula ou pipe (ex.: ns1,ns2 ou ns1|ns2). Vazio = descobrir todos os namespaces ativos (kube_namespace_status_phase).'
     - macro: '{$THANOS.STEP}'
       value: 60s
       description: Step das queries PromQL (range/vector).
@@ -102,18 +102,18 @@ zabbix_export:
       name: Descoberta de namespaces
       type: HTTP_AGENT
       request_method: GET
-      url: '{$THANOS.URL}/api/v1/query?query=up'
+      url: '{$THANOS.URL}/api/v1/query?query=kube_namespace_status_phase%7Bphase%3D%22Active%22%7D'
       headers:
       - name: Authorization
         value: Bearer {$THANOS.TOKEN}
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
-      description: Descobre namespaces alvo via query `up`; usa {$THANOS.NAMESPACES} se definido.
+      description: 'Descobre namespaces ativos via kube_namespace_status_phase; filtra por {$THANOS.NAMESPACES} (regex OU por virgula, vazio = todos).'
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - "var STATIC = '{$THANOS.NAMESPACES}';\nvar CPU_MIN = parseFloat('{$THANOS.NS_CPU_LIMIT}') || 0;\nvar MEM_MIN = parseFloat('{$THANOS.NS_MEM_LIMIT_GT}') || 0;\nvar nsSet = {};\nif (STATIC && STATIC.trim() !== '') {\n  STATIC.split(',').forEach(function (s) { nsSet[s.trim()] = { cpu: 0, mem: 0 }; });\n}\nvar body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nbody.data.result.forEach(function (r) {\n  var n = r.metric.namespace;\n  if (n && !nsSet[n]) { nsSet[n] = { cpu: 0, mem: 0 }; }\n});\nvar rows = [];\nObject.keys(nsSet).sort().forEach(function (n) {\n  rows.push({\n    '{#NSNAME}': n,\n    '{#NSCPUQUOTA}': nsSet[n].cpu,\n    '{#NSMEMQUOTA}': nsSet[n].mem\n  });\n});\nreturn JSON.stringify({ 'data': rows });\n"
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar STATIC = '{$THANOS.NAMESPACES}';\nvar filter = null;\nif (typeof STATIC === 'string' && STATIC.trim() !== '') {\n  try { filter = new RegExp('^(?:' + STATIC.trim().split(/\\s*,\\s*/).join('|') + ')$'); }\n  catch (e) { throw 'Regex invalida em {$THANOS.NAMESPACES}: ' + e.message; }\n}\nvar nsSet = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (!n) { return; }\n  if (filter && !filter.test(n)) { return; }\n  nsSet[n] = 1;\n});\nvar rows = Object.keys(nsSet).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nif (!rows.length) { throw 'LLD sem resultados: nenhum namespace casou com o filtro {$THANOS.NAMESPACES}.'; }\nreturn JSON.stringify({ 'data': rows });\n"
       item_prototypes:
       - uuid: 8a50915bdcc54963bb16a99a593393df
         key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
@@ -200,6 +200,10 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 5m
       lifetime: 30d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (n) { rows[n] = 1; }\n});\nvar data = Object.keys(rows).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nreturn JSON.stringify({ 'data': data });\n"
       item_prototypes:
       - uuid: 561f453c2f214093a5c4f5ae79f96e43
         key: thanos.namespace_nsname_cpu_usada_millicores[{#NSNAME}]
@@ -394,6 +398,10 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 5m
       lifetime: 30d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (n) { rows[n] = 1; }\n});\nvar data = Object.keys(rows).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nreturn JSON.stringify({ 'data': data });\n"
       item_prototypes:
       - uuid: 08f86e961ecf415aaa9ba022d3124d87
         key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
@@ -551,13 +559,17 @@ zabbix_export:
       name: 'Namespace {#NSNAME}: Containers'
       type: HTTP_AGENT
       request_method: GET
-      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_container_info%7Bnamespace%3D~%22{#NSNAME}%22%7D'
+      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_container_info'
       headers:
       - name: Authorization
         value: Bearer {$THANOS.TOKEN}
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function (r) {\n  var m = r.metric || {};\n  if (m.namespace && m.pod && m.container) {\n    var k = m.namespace + '|' + m.pod + '|' + m.container;\n    rows[k] = { '{#NSNAME}': m.namespace, '{#POD}': m.pod, '{#CONTAINER}': m.container };\n  }\n});\nvar data = Object.keys(rows).sort().map(function (k) { return rows[k]; });\nreturn JSON.stringify({ 'data': data });\n"
       item_prototypes:
       - uuid: 1dda120570124b299888f84e4b8620cd
         key: thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}]
@@ -633,6 +645,10 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (n) { rows[n] = 1; }\n});\nvar data = Object.keys(rows).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nreturn JSON.stringify({ 'data': data });\n"
       item_prototypes:
       - uuid: d9c012c35ad444fcb433d5e2bb6a6352
         key: thanos.namespace_nsname_app_latency_p95[{#NSNAME}]
@@ -717,6 +733,10 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (n) { rows[n] = 1; }\n});\nvar data = Object.keys(rows).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nreturn JSON.stringify({ 'data': data });\n"
       item_prototypes:
       - uuid: 798d8e5f6e7548c78ccdf9f960ef8fb4
         key: thanos.namespace_nsname_storage_usage_pct[{#NSNAME}]
@@ -769,6 +789,10 @@ zabbix_export:
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (n) { rows[n] = 1; }\n});\nvar data = Object.keys(rows).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nreturn JSON.stringify({ 'data': data });\n"
       item_prototypes:
       - uuid: 2d89aa9b7931458b814778f487935573
         key: thanos.namespace_nsname_oomkills_total[{#NSNAME}]
