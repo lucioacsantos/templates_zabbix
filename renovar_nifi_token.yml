@@ -1,0 +1,144 @@
+# renovar_nifi_token.yml — Renova o token do Apache NiFi e atualiza {$NIFI.TOKEN} no Zabbix.
+#
+# Fluxo (equivalente ao renovar_nifi_token.sh):
+#   1. Loga no NiFi (POST /access/token, form-encoded) — token expira em 8h (single-user).
+#   2. Resolve hostid + hostmacroid da macro {$NIFI.TOKEN} via API do Zabbix.
+#   3. Atualiza a macro (secret) com o novo token (somente se o valor mudou).
+#
+# Uso:
+#   venv/bin/ansible-playbook renovar_nifi_token.yml
+#
+# Crontab (renova a cada 7h — folga de 1h antes da expiração de 8h):
+#   0 */7 * * * cd /home/lucio/Desenvolvimento/templates_zabbix && venv/bin/ansible-playbook renovar_nifi_token.yml >> $HOME/renovar-nifi-token.log 2>&1
+---
+- name: Renovar token do NiFi e atualizar macro no Zabbix
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    env_file: "{{ playbook_dir }}/.env"
+    zabbix_api_url: "http://localhost/api_jsonrpc.php"
+    nifi_token_url: "https://localhost:8443/nifi-api/access/token"
+    zabbix_host_name: "nifi-local"
+    zabbix_macro: "{$NIFI.TOKEN}"
+
+  tasks:
+    - name: Ler arquivo .env (KEY=VALUE por linha)
+      ansible.builtin.set_fact:
+        env: >-
+          {{ dict(raw_lines | map('regex_replace', '^([^=#]+)=.*$', '\1') | zip(raw_lines | map('regex_replace', '^[^=#]+=', '')))
+             if (raw_lines | length) > 0 else {} }}
+      vars:
+        raw_lines: "{{ lookup('ansible.builtin.file', env_file).splitlines() | select('match', '^[^#\\s][^=]*=') | list }}"
+
+    - name: Validar variaveis obrigatorias
+      ansible.builtin.assert:
+        that:
+          - env.token_zabbix is defined and env.token_zabbix | length > 0
+          - env.nifi_username is defined and env.nifi_username | length > 0
+          - env.nifi_password is defined and env.nifi_password | length > 0
+        fail_msg: "Variaveis obrigatorias ausentes em {{ env_file }} (token_zabbix, nifi_username, nifi_password)"
+        quiet: true
+
+    - name: Login no NiFi (POST /access/token)
+      ansible.builtin.uri:
+        url: "{{ nifi_token_url }}"
+        method: POST
+        validate_certs: false
+        headers:
+          Content-Type: application/x-www-form-urlencoded
+        body_format: form-urlencoded
+        body:
+          username: "{{ env.nifi_username }}"
+          password: "{{ env.nifi_password }}"
+        status_code: 201
+        return_content: true
+        timeout: 15
+      register: nifi_login
+
+    - name: Validar token recebido do NiFi
+      ansible.builtin.assert:
+        that:
+          - nifi_login.content | trim | length >= 100
+        fail_msg: "Login NiFi falhou: token invalido ({{ nifi_login.status }})"
+        quiet: true
+      no_log: true
+
+    - name: Setar token NiFi (no_log)
+      ansible.builtin.set_fact:
+        nifi_token: "{{ nifi_login.content | trim }}"
+      no_log: true
+
+    - name: Consultar host no Zabbix (host.get)
+      ansible.builtin.uri:
+        url: "{{ zabbix_api_url }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ env.token_zabbix }}"
+          Content-Type: "application/json-rpc"
+        body: '{{ {"jsonrpc": "2.0", "method": "host.get", "params": {"filter": {"host": [zabbix_host_name]}, "output": ["hostid"]}, "id": 1} | to_json }}'
+        status_code: 200
+        return_content: true
+        timeout: 30
+      register: zbx_host
+
+    - name: Extrair hostid
+      ansible.builtin.set_fact:
+        zbx_hostid: "{{ (zbx_host.json.result | first).hostid if (zbx_host.json.result | length > 0) else '' }}"
+
+    - name: Falhar se host nao encontrado no Zabbix
+      ansible.builtin.fail:
+        msg: "Host '{{ zabbix_host_name }}' nao encontrado no Zabbix"
+      when: zbx_hostid | length == 0
+
+    - name: Localizar hostmacroid da macro (usermacro.get)
+      ansible.builtin.uri:
+        url: "{{ zabbix_api_url }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ env.token_zabbix }}"
+          Content-Type: "application/json-rpc"
+        body: '{{ {"jsonrpc": "2.0", "method": "usermacro.get", "params": {"hostids": [zbx_hostid], "output": ["hostmacroid", "macro"]}, "id": 2} | to_json }}'
+        status_code: 200
+        return_content: true
+        timeout: 30
+      register: zbx_macros
+
+    - name: Extrair hostmacroid de {$NIFI.TOKEN}
+      ansible.builtin.set_fact:
+        zbx_hostmacroid: >-
+          {{ (zbx_macros.json.result
+              | selectattr('macro', 'equalto', '{$NIFI.TOKEN}')
+              | map(attribute='hostmacroid')
+              | first) | default('', true) }}
+
+    - name: Falhar se macro nao existir no host
+      ansible.builtin.fail:
+        msg: "Macro {{ zabbix_macro }} nao existe no host '{{ zabbix_host_name }}'"
+      when: zbx_hostmacroid | length == 0
+
+    - name: Atualizar macro {$NIFI.TOKEN} (usermacro.update)
+      ansible.builtin.uri:
+        url: "{{ zabbix_api_url }}"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ env.token_zabbix }}"
+          Content-Type: "application/json-rpc"
+        body: '{{ {"jsonrpc": "2.0", "method": "usermacro.update", "params": {"hostmacroid": zbx_hostmacroid, "value": nifi_token}, "id": 3} | to_json }}'
+        status_code: 200
+        return_content: true
+        timeout: 30
+      register: zbx_update
+      no_log: true
+
+    - name: Verificar atualizacao da macro
+      ansible.builtin.fail:
+        msg: "usermacro.update falhou: {{ zbx_update.json.error | default(zbx_update.json) }}"
+      when: zbx_update.json.result is not defined
+
+    - name: Resultado
+      ansible.builtin.debug:
+        msg: >-
+          OK: {$NIFI.TOKEN} atualizada no host '{{ zabbix_host_name }}'
+          (hostmacroid={{ zbx_hostmacroid }}), token com {{ nifi_token | length }} chars.

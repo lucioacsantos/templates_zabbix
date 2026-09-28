@@ -73,22 +73,35 @@ O NiFi **não** emite tokens de longa duração: o JWT máximo é de **12h** (ha
 `StandardBearerTokenProvider.MAXIMUM_EXPIRATION`) e o single-user login gera tokens de **8h** fixos.
 Não existe "API token"/"service token" na UI nem via CLI.
 
-Para o Zabbix, o token é renovado automaticamente pelo script `renovar_nifi_token.sh`
-(login no NiFi + atualização de `{$NIFI.TOKEN}` via API do Zabbix).
+Para o Zabbix, o token é renovado automaticamente pelo playbook Ansible `renovar_nifi_token.yml`
+(login no NiFi + atualização de `{$NIFI.TOKEN}` via API do Zabbix). Alternativa legada:
+script shell `renovar_nifi_token.sh` (mesmo fluxo, com `curl` + `python3`).
 
-Instalação:
+### Playbook Ansible (recomendado)
+
+Requisitos: `ansible-core` + coleção `community.general` (já instalados no `venv/` do projeto).
 
 ```bash
-chmod +x renovar_nifi_token.sh
 # executar manualmente para validar:
-./renovar_nifi_token.sh
-# instalar no crontab (renova a cada 7h — folga de 1h antes da expiração de 8h):
-( crontab -l 2>/dev/null; \
-  echo "0 */7 * * * $PWD/renovar_nifi_token.sh >> $HOME/renovar-nifi-token.log 2>&1" ) | crontab -
+venv/bin/ansible-playbook renovar_nifi_token.yml
+
+# sintaxe apenas (sem executar):
+venv/bin/ansible-playbook renovar_nifi_token.yml --syntax-check
 ```
 
-Log de execução: `~/renovar-nifi-token.log`. Variáveis ajustáveis no topo do script
-(`ZABBIX_HOST_NAME`, `ZABBIX_MACRO`, `NIFI_TOKEN_URL`).
+O playbook lê `.env` do projeto (`token_zabbix`, `nifi_username`, `nifi_password`), faz login no
+NiFi (`POST /access/token`, `201`), resolve `hostid`/`hostmacroid` de `{$NIFI.TOKEN}` via API do
+Zabbix e atualiza a macro (segredo nunca logado — `no_log`).
+
+Instalação no cron (renova a cada 7h — folga de 1h antes da expiração de 8h):
+
+```bash
+( crontab -l 2>/dev/null; \
+  echo "0 */7 * * * cd $PWD && venv/bin/ansible-playbook renovar_nifi_token.yml >> $HOME/renovar-nifi-token.log 2>&1" ) | crontab -
+```
+
+Variáveis ajustáveis no topo do playbook (`zabbix_host_name`, `zabbix_macro`, `nifi_token_url`,
+`zabbix_api_url`, `env_file`).
 
 ### Alternativa oficial: mTLS com client certificate
 
