@@ -114,6 +114,25 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos API LLD: ' + body.status; }\nvar STATIC = '{$THANOS.NAMESPACES}';\nvar filter = null;\nif (typeof STATIC === 'string' && STATIC.trim() !== '') {\n  try { filter = new RegExp('^(?:' + STATIC.trim().split(/\\s*,\\s*/).join('|') + ')$'); }\n  catch (e) { throw 'Regex invalida em {$THANOS.NAMESPACES}: ' + e.message; }\n}\nvar nsSet = {};\nbody.data.result.forEach(function (r) {\n  var n = r.metric && r.metric.namespace;\n  if (!n) { return; }\n  if (filter && !filter.test(n)) { return; }\n  nsSet[n] = 1;\n});\nvar rows = Object.keys(nsSet).sort().map(function (n) {\n  return { '{#NSNAME}': n };\n});\nif (!rows.length) { throw 'LLD sem resultados: nenhum namespace casou com o filtro {$THANOS.NAMESPACES}.'; }\nreturn JSON.stringify({ 'data': rows });\n"
+      template_prototypes:
+      - uuid: a1b2c3d4e5f64788a9b0c1d2e3f40001
+        template: 'OpenShift Thanos API by JS Resource Limits'
+        name: 'Namespace {#NSNAME}: Recursos'
+      - uuid: a1b2c3d4e5f64788a9b0c1d2e3f40002
+        template: 'OpenShift Thanos API by JS Pods'
+        name: 'Namespace {#NSNAME}: Pods'
+      - uuid: a1b2c3d4e5f64788a9b0c1d2e3f40003
+        template: 'OpenShift Thanos API by JS Containers'
+        name: 'Namespace {#NSNAME}: Containers'
+      - uuid: a1b2c3d4e5f64788a9b0c1d2e3f40004
+        template: 'OpenShift Thanos API by JS Application'
+        name: 'Namespace {#NSNAME}: Application'
+      - uuid: a1b2c3d4e5f64788a9b0c1d2e3f40005
+        template: 'OpenShift Thanos API by JS Storage'
+        name: 'Namespace {#NSNAME}: Storage'
+      - uuid: a1b2c3d4e5f64788a9b0c1d2e3f40006
+        template: 'OpenShift Thanos API by JS Events'
+        name: 'Namespace {#NSNAME}: Events'
       item_prototypes:
       - uuid: 8a50915bdcc54963bb16a99a593393df
         key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
