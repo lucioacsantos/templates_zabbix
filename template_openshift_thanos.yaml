@@ -339,25 +339,6 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 310a99c1615a47ea8da267ab8d1285db
-        key: thanos.namespace_nsname_pods_pendentes[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: Pods pendentes'
-        type: HTTP_AGENT
-        value_type: UNSIGNED
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Pending%22%7D%20%3D%3D%201)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
-            ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
-            ? parseFloat(body.data.result[0].value[1]) : 0;'
       - uuid: ba2f8102a8b24a6a9d2cb02929c10534
         key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods com falha'
@@ -386,25 +367,6 @@ zabbix_export:
         trends: 30d
         request_method: GET
         url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Unknown%22%7D%20%3D%3D%201)'
-        headers:
-        - name: Authorization
-          value: Bearer {$THANOS.TOKEN}
-        timeout: '{$THANOS.TIMEOUT}'
-        preprocessing:
-        - type: JAVASCRIPT
-          parameters:
-          - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
-            ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
-            ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: f860a777b02b487c8f47ef94994567f9
-        key: thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}]
-        name: 'Namespace {#NSNAME}: Pods nao rodando'
-        type: HTTP_AGENT
-        value_type: UNSIGNED
-        history: 7d
-        trends: 30d
-        request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=count(kube_pod_info%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20-%20count(kube_pod_status_phase%7Bnamespace%3D~%22{#NSNAME}%22%2Cphase%3D%22Running%22%7D%20%3D%3D%201)'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -565,30 +527,6 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: performance
-      - uuid: d3d47939471043ff93a455b77fd4bf2b
-        expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_pods_pendentes[{#NSNAME}],10m)>0
-        name: 'Namespace {#NSNAME}: pods pendentes'
-        priority: AVERAGE
-        description: Existem pods em fase Pending no namespace {#NSNAME} (possivel
-          falta de recursos).
-        manual_close: 'YES'
-        tags:
-        - tag: namespace
-          value: '{#NSNAME}'
-        - tag: scope
-          value: capacity
-      - uuid: dec2ed76532f443b9709bcebcfe17903
-        expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_pods_nao_rodando[{#NSNAME}],10m)>0
-        name: 'Namespace {#NSNAME}: pods nao rodando'
-        priority: AVERAGE
-        description: Existem pods nao-Running (Pending/Failed/Unknown) no namespace
-          {#NSNAME}.
-        manual_close: 'YES'
-        tags:
-        - tag: namespace
-          value: '{#NSNAME}'
-        - tag: scope
-          value: availability
       - uuid: 8064c54d28a84a4d9da1232e3330b59a
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
@@ -641,24 +579,34 @@ zabbix_export:
       name: 'Namespace {#NSNAME}: Containers'
       type: HTTP_AGENT
       request_method: GET
-      url: '{$THANOS.URL}/api/v1/query?query=kube_pod_container_info'
+      url: '{$THANOS.URL}/api/v1/query?query=container_cpu_usage_seconds_total%7Bcontainer%21%3D%22%22%2Cimage%21%3D%22%22%7D'
       headers:
       - name: Authorization
         value: Bearer {$THANOS.TOKEN}
       timeout: '{$THANOS.TIMEOUT}'
       delay: 1h
       lifetime: 30d
-      description: Descobre containers (pod/container) por namespace via kube_pod_container_info.
+      description: Descobre containers COM METRICAS (rodando) por namespace, filtrando
+        por {$THANOS.NAMESPACES} (pipe ou virgula, vazio = todos). Igual ao Containers
+        V2.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - "var body = JSON.parse(value);\nif (body.status !== 'success') { throw 'Thanos\
-          \ API LLD: ' + body.status; }\nvar rows = {};\nbody.data.result.forEach(function\
-          \ (r) {\n  var m = r.metric || {};\n  if (m.namespace && m.pod && m.container)\
-          \ {\n    var k = m.namespace + '|' + m.pod + '|' + m.container;\n    rows[k]\
-          \ = { '{#NSNAME}': m.namespace, '{#POD}': m.pod, '{#CONTAINER}': m.container\
-          \ };\n  }\n});\nvar data = Object.keys(rows).sort().map(function (k) { return\
-          \ rows[k]; });\nreturn JSON.stringify({ 'data': data });\n"
+          \ API LLD: ' + body.status; }\nvar STATIC = '{$THANOS.NAMESPACES}';\nvar\
+          \ filter = null;\nif (typeof STATIC === 'string' && STATIC.trim() !== '')\
+          \ {\n  try { filter = new RegExp('^(?:' + STATIC.trim().split(/[\\s,|]+/).join('|')\
+          \ + ')$'); }\n  catch (e) { throw 'Regex invalida em {$THANOS.NAMESPACES}:\
+          \ ' + e.message; }\n}\nvar rows = {};\nbody.data.result.forEach(function\
+          \ (r) {\n  var m = r.metric || {};\n  if (!m.namespace || !m.pod || !m.container)\
+          \ { return; }\n  if (filter && !filter.test(m.namespace)) { return; }\n\
+          \  var k = m.namespace + '|' + m.pod + '|' + m.container;\n  if (!rows[k])\
+          \ {\n    rows[k] = { '{#NSNAME}': m.namespace, '{#POD}': m.pod, '{#CONTAINER}':\
+          \ m.container, '{#APP_NAME}': (m.pod.split('-').slice(0, -2).join('-') ||\
+          \ m.pod) };\n  }\n});\nvar data = Object.keys(rows).sort().map(function\
+          \ (k) { return rows[k]; });\nif (!data.length) { throw 'LLD de containers\
+          \ sem resultados (verifique {$THANOS.NAMESPACES}).'; }\nreturn JSON.stringify({\
+          \ 'data': data });\n"
       item_prototypes:
       - uuid: 1dda120570124b299888f84e4b8620cd
         key: thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}]
