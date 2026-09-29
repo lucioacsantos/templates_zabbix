@@ -405,8 +405,7 @@ zabbix_export:
         value_type: FLOAT
         units: s
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D))
-          by (le))'
+        url: '{$THANOS.URL}/api/v1/query?query=histogram_quantile(0.95%2C%20sum(rate(http_request_duration_seconds_bucket%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D))%20by%20(le))'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -424,8 +423,7 @@ zabbix_export:
         value_type: FLOAT
         units: '%'
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=100 * sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%2Cstatus=~%225..%22%7D%5B{$THANOS.STEP}%5D))
-          / sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D))'
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%2Cstatus%3D~%225..%22%7D%5B{$THANOS.STEP}%5D))%20%2F%20sum(rate(http_requests_total%7Bnamespace%3D~%22{#NSNAME}%22%7D%5B{$THANOS.STEP}%5D))'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -461,8 +459,7 @@ zabbix_export:
         value_type: FLOAT
         units: '%'
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=100 * sum(kubelet_volume_stats_used_bytes%7Bnamespace%3D~%22{#NSNAME}%22%7D)
-          / sum(kubelet_volume_stats_capacity_bytes%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        url: '{$THANOS.URL}/api/v1/query?query=100%20*%20sum(kubelet_volume_stats_used_bytes%7Bnamespace%3D~%22{#NSNAME}%22%7D)%20%2F%20sum(kubelet_volume_stats_capacity_bytes%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
