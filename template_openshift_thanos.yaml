@@ -69,7 +69,7 @@ zabbix_export:
       value: '0'
       description: 'Filtro LLD: ResourceQuota de memoria >= valor (bytes). 0 = todos.'
     items:
-    - uuid: 736903d326504b98b11a9fd608d23b6d
+    - uuid: c2a5a4970749420e87614674c196bf3e
       key: thanos.thanos_api_status_do_servico
       name: 'Thanos API: Status do servico'
       type: HTTP_AGENT
@@ -92,12 +92,16 @@ zabbix_export:
           \ API status: ' + body.status; }\nvar ns = {};\nvar total = 0;\nvar up =\
           \ 0;\nbody.data.result.forEach(function (r) {\n  total++;\n  if (parseFloat(r.value[1])\
           \ > 0) { up++; }\n  var n = r.metric.namespace;\n  if (n) { ns[n] = 1; }\n\
-          });\nreturn JSON.stringify({ 'status': 'success', 'targets_total': total,\
-          \ 'targets_up': up, 'targets_down': total - up, 'namespaces': Object.keys(ns).sort()\
-          \ });\n"
+          });\nvar off = total - up;\nreturn JSON.stringify({ 'status': 'success',\
+          \ 'targets_total': total, 'targets_up': up, 'targets_off': off, 'namespaces':\
+          \ Object.keys(ns).sort() });\n"
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value); if (body.status !== 'success') { return 'FALHA'; } return 'OK';"
       triggers:
-      - uuid: 2e4006ad05fe436e9ce4236dfc9aa060
-        expression: find(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,1m,"regexp","[Ff][Aa][Ll][Hh][Aa]|[Dd][Oo][Ww][Nn]")=1
+      - uuid: 61a958cfb43744809a8f0e4b6cb1a290
+        expression: find(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,1m,"regexp","^FALHA$")=1
+          or nodata(/OpenShift Thanos API by JS/thanos.thanos_api_status_do_servico,5m)=1
         name: 'Thanos API: servico indisponivel'
         opdata: 'Thanos API: {ITEM.LASTVALUE1}'
         priority: HIGH
@@ -107,7 +111,7 @@ zabbix_export:
         - tag: scope
           value: availability
     discovery_rules:
-    - uuid: 6df897edd03649ad89da667d784dee1c
+    - uuid: ff4ff8cc91ae49afa8014dcfd741eb36
       key: thanos.discovery.descoberta_de_namespaces
       name: Descoberta de namespaces
       type: HTTP_AGENT
@@ -137,7 +141,7 @@ zabbix_export:
           \ casou com o filtro {$THANOS.NAMESPACES}.'; }\nreturn JSON.stringify({\
           \ 'data': rows });\n"
       item_prototypes:
-      - uuid: 8a50915bdcc54963bb16a99a593393df
+      - uuid: 4674baad2e2c4d5ba45c3c933a7fe6aa
         key: thanos.namespace_nsname_status_up_targets[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Status (up targets)'
         type: HTTP_AGENT
@@ -145,7 +149,7 @@ zabbix_export:
         history: 7d
         trends: 30d
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=count(up%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        url: '{$THANOS.URL}/api/v1/query?query=count(up%20%3D%3D%20bool%201%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -154,9 +158,12 @@ zabbix_export:
         - type: JAVASCRIPT
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
-            ''Thanos API: '' + body.status; } var v = 0; body.data.result.forEach(function
-            (r) { if (parseFloat(r.value[1]) > 0) { v++; } }); return v;'
-      - uuid: 561f453c2f214093a5c4f5ae79f96e43
+            ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
+            { return -1; } return (body.data.result[0].value[1] === ''0'') ? -1 : parseFloat(body.data.result[0].value[1]);'
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters:
+          - 15m
+      - uuid: 97ef03b2d93849568d7681a4ec02bbe3
         key: thanos.namespace_nsname_cpu_usada_millicores[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU usada (millicores)'
         type: HTTP_AGENT
@@ -176,7 +183,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? (parseFloat(body.data.result[0].value[1]) * 1000) : 0;'
-      - uuid: fef4e0dd620c4bf1b900e6a34ba1c75f
+      - uuid: c548172c772940d69406b9801272e558
         key: thanos.namespace_nsname_memoria_usada_bytes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria usada (bytes)'
         type: HTTP_AGENT
@@ -196,7 +203,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 93c8d8dc2ee147fcb2cf666acb740f4c
+      - uuid: 3e93c4018a7e4dbbb0f14dec55af0a9d
         key: thanos.namespace_nsname_cpu_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do limite'
         type: HTTP_AGENT
@@ -217,7 +224,7 @@ zabbix_export:
             ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
             { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100;
             return isNaN(num) ? 0 : num;'
-      - uuid: 239e4300c8564adeb4715d08552bc45b
+      - uuid: 4b6b0b9f0f6442d191f20f8f21b3c03d
         key: thanos.namespace_nsname_memoria_do_limite[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do limite'
         type: HTTP_AGENT
@@ -238,7 +245,7 @@ zabbix_export:
             ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
             { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100;
             return isNaN(num) ? 0 : num;'
-      - uuid: 5692df8dd8f24406b93a47720ed1fabb
+      - uuid: 82316ea58f144e26b4f176b8593fb0e1
         key: thanos.namespace_nsname_cpu_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: CPU % do Request'
         type: HTTP_AGENT
@@ -259,7 +266,7 @@ zabbix_export:
             ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
             { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100;
             return isNaN(num) ? 0 : num;'
-      - uuid: e599d18e88f040bb9210a4dd51794e1a
+      - uuid: 80c33dff65b944ec89e0907182b02a8d
         key: thanos.namespace_nsname_memoria_do_request[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Memoria % do Request'
         type: HTTP_AGENT
@@ -280,7 +287,7 @@ zabbix_export:
             ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
             { return 0; } var num = parseFloat(body.data.result[0].value[1]) * 100;
             return isNaN(num) ? 0 : num;'
-      - uuid: 23e9614a491044b7be1fe77d56715e03
+      - uuid: f193c27e224444598a93e513284f1d47
         key: thanos.namespace_nsname_quota_de_cpu_cores[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de CPU (cores)'
         type: HTTP_AGENT
@@ -300,7 +307,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 0a72ddc6ae854514b751adf2e3e2c84e
+      - uuid: eb743581638f4f4083644f2c2ef58224
         key: thanos.namespace_nsname_quota_de_memoria_bytes[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Quota de memoria (bytes)'
         type: HTTP_AGENT
@@ -320,7 +327,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 08f86e961ecf415aaa9ba022d3124d87
+      - uuid: 5034366fdab24ffd9c78aeb0e9aa9c5c
         key: thanos.namespace_nsname_pods_rodando[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods rodando'
         type: HTTP_AGENT
@@ -339,7 +346,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: ba2f8102a8b24a6a9d2cb02929c10534
+      - uuid: e8370df3e9e24fd38655f8d2dc4991ec
         key: thanos.namespace_nsname_pods_com_falha[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods com falha'
         type: HTTP_AGENT
@@ -358,7 +365,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 6f9b06a7d6364a06bf2bf41128220ca1
+      - uuid: adb81b053c1c4a49a12f65643459a072
         key: thanos.namespace_nsname_pods_desconhecidos[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Pods desconhecidos'
         type: HTTP_AGENT
@@ -377,7 +384,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 22e0e3107a094a7b9069c5b87fbafe14
+      - uuid: 055f1e121b4941ee8f52724e6b38e733
         key: thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Restarts de containers (1h)'
         type: HTTP_AGENT
@@ -398,7 +405,7 @@ zabbix_export:
             ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
             { return 0; } var v = parseFloat(body.data.result[0].value[1]); return
             isNaN(v) ? 0 : v;'
-      - uuid: d9c012c35ad444fcb433d5e2bb6a6352
+      - uuid: b2742a3be0204d45bca7dda5c6e4ee99
         key: thanos.namespace_nsname_app_latency_p95[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Latencia p95 (HTTP)'
         type: HTTP_AGENT
@@ -416,7 +423,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 838822d5f7254f42b75bcae627c15e08
+      - uuid: b039357cc37845a3b142e5b6b4b6b55c
         key: thanos.namespace_nsname_app_errors_rate[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Taxa de Erros (HTTP 5xx)'
         type: HTTP_AGENT
@@ -434,7 +441,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 8dbae17bed364160b4f1988aeedb2e25
+      - uuid: 5e094577cca54440a5639a9492452692
         key: thanos.namespace_nsname_app_traffic_rps[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Trafego (RPS)'
         type: HTTP_AGENT
@@ -452,7 +459,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 798d8e5f6e7548c78ccdf9f960ef8fb4
+      - uuid: 3be62f96a8084e06b96e990b12f20fc6
         key: thanos.namespace_nsname_storage_usage_pct[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Uso de Disco (PVC %)'
         type: HTTP_AGENT
@@ -470,7 +477,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 2d89aa9b7931458b814778f487935573
+      - uuid: 824717159d0e4350918d3b980d4a3dd8
         key: thanos.namespace_nsname_oomkills_total[{#NSNAME}]
         name: 'Namespace {#NSNAME}: Total de OOMKills'
         type: HTTP_AGENT
@@ -488,8 +495,8 @@ zabbix_export:
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: e5e59bb8803d4932b23c7eabdb8280ee
-        expression: max(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER})=0
+      - uuid: 1961c8d24dfe4969b6ae06f17df410a3
+        expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER})=0
         name: 'Namespace {#NSNAME}: sem targets up (down)'
         priority: WARNING
         description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
@@ -500,7 +507,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: availability
-      - uuid: d5f5b2e2aa084c0a929e1e23bae24dcb
+      - uuid: 98636836fd27429a89c8644e6b0af807
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
         priority: WARNING
@@ -512,7 +519,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: performance
-      - uuid: 5dd350680b044189bd239472041b841c
+      - uuid: 5a05d5bed1ab486aa855b6cbe9db5ec9
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do limite'
         priority: WARNING
@@ -524,7 +531,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: performance
-      - uuid: 8064c54d28a84a4d9da1232e3330b59a
+      - uuid: 170941121ccc444293d7984f0482772b
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
         priority: WARNING
@@ -536,7 +543,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: performance
-      - uuid: 20367cbad18b4a2892af5a9bd39c484b
+      - uuid: 05e1e4a386e24247b9dc1b55253f9dae
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_app_errors_rate[{#NSNAME}],5m)>5
         name: 'Namespace {#NSNAME}: Taxa de erros HTTP 5xx elevada'
         priority: HIGH
@@ -547,7 +554,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: availability
-      - uuid: 3ee671b1245646aa9fd5d408d4e31fe4
+      - uuid: 0bece193242d42e9a1c62f74dcd79c08
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_storage_usage_pct[{#NSNAME}],5m)>85
         name: 'Namespace {#NSNAME}: Uso de Disco > 85%'
         priority: AVERAGE
@@ -559,7 +566,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: capacity
-      - uuid: 48e7d5e927cf40538340a6a71f97f26a
+      - uuid: 03babec17ccb493b83d03e73efc75681
         expression: change(/OpenShift Thanos API by JS/thanos.namespace_nsname_oomkills_total[{#NSNAME}])>0
         name: 'Namespace {#NSNAME}: OOMKill detectado'
         priority: HIGH
@@ -571,7 +578,7 @@ zabbix_export:
           value: '{#NSNAME}'
         - tag: scope
           value: availability
-    - uuid: 5a3701bf72ac428fb0efd4eb25713ac9
+    - uuid: 36e824a4721f4a858b607a12d6d0e01e
       key: thanos.discovery.namespace_nsname_containers
       name: 'Namespace {#NSNAME}: Containers'
       type: HTTP_AGENT
@@ -605,7 +612,7 @@ zabbix_export:
           \ sem resultados (verifique {$THANOS.NAMESPACES}).'; }\nreturn JSON.stringify({\
           \ 'data': data });\n"
       item_prototypes:
-      - uuid: 1dda120570124b299888f84e4b8620cd
+      - uuid: 863e70c102a84496a4545c1322c86854
         key: thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}]
         name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling'
         type: HTTP_AGENT
@@ -623,7 +630,7 @@ zabbix_export:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
-      - uuid: 87767aa48daa4b028bef80583d0601bc
+      - uuid: cd82a1aa84cc49b6b8c61a12341aeb3d
         key: thanos.namespace_nsname_container_memory_usage[{#NSNAME},{#POD},{#CONTAINER}]
         name: 'Container {#CONTAINER} (Pod {#POD}): Memoria'
         type: HTTP_AGENT
@@ -642,7 +649,7 @@ zabbix_export:
             ''Thanos API: '' + body.status; } return (body.data.result && body.data.result.length)
             ? parseFloat(body.data.result[0].value[1]) : 0;'
       trigger_prototypes:
-      - uuid: 21a9863fa78c45a78beab2055ac3ebe9
+      - uuid: 9230a62c71274a03a016b50177c48cb8
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}],5m)>0.1
         name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling detectado'
         priority: WARNING
@@ -668,7 +675,7 @@ zabbix_export:
     - tag: target
       value: thanos
     valuemaps:
-    - uuid: b1dd27ca9d0a4e14ac41d4f3001a3719
+    - uuid: 6d7b9bbc417248b3bdf147023f8ddf72
       name: Thanos API status
       mappings:
       - value: OK
