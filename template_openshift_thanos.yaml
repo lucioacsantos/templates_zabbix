@@ -105,7 +105,10 @@ zabbix_export:
         name: 'Thanos API: servico indisponivel'
         opdata: 'Thanos API: {ITEM.LASTVALUE1}'
         priority: HIGH
-        description: A coleta do status do Thanos API falhou ou retornou servico down.
+        description: |
+          A coleta do status do Thanos Querier falhou (item sem dado ou resposta invalida) por 5 minutos, ou o valor de status e FALHA.
+          SIGNIFICADO: indisponibilidade da FONTE de monitoramento (API do Thanos).
+          ACAO: validar rota/DNS/firewall e token (curl no README); se o querier cair, TODOS os itens do template ficam sem dados — incidentes de namespace podem estar mascarados.
         manual_close: 'YES'
         tags:
         - tag: scope
@@ -149,7 +152,7 @@ zabbix_export:
         history: 7d
         trends: 30d
         request_method: GET
-        url: '{$THANOS.URL}/api/v1/query?query=count(up%20%3D%3D%20bool%201%7Bnamespace%3D~%22{#NSNAME}%22%7D)'
+        url: '{$THANOS.URL}/api/v1/query?query=up%7Bnamespace%3D~%22{#NSNAME}%22%7D'
         headers:
         - name: Authorization
           value: Bearer {$THANOS.TOKEN}
@@ -159,7 +162,8 @@ zabbix_export:
           parameters:
           - 'var body = JSON.parse(value); if (body.status !== ''success'') { throw
             ''Thanos API: '' + body.status; } if (!(body.data.result && body.data.result.length))
-            { return -1; } return (body.data.result[0].value[1] === ''0'') ? -1 : parseFloat(body.data.result[0].value[1]);'
+            { return -1; } var up = 0; body.data.result.forEach(function (r) { if
+            (parseFloat(r.value[1]) > 0) { up++; } }); return up === 0 ? 0 : up;'
         - type: DISCARD_UNCHANGED_HEARTBEAT
           parameters:
           - 15m
@@ -499,8 +503,11 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_status_up_targets[{#NSNAME}],{$THANOS.STATUS_NS_TRIGGER})=0
         name: 'Namespace {#NSNAME}: sem targets up (down)'
         priority: WARNING
-        description: Nenhum alvo `up` no namespace {#NSNAME} nos ultimos {$THANOS.STATUS_NS_TRIGGER}
-          minutos.
+        description: |
+          Nenhum alvo Prometheus (target) up neste namespace nos ultimos {$THANOS.STATUS_NS_TRIGGER} minutos.
+          CAUSA COMUM: pods do ServiceMonitor parados, scrape indisponivel ou namespace sem workloads monitorados.
+          ACAO: verificar pods/servicos do namespace e o alvo em "Targets" no Thanos/Prometheus.
+          Valor -1 = namespace sem NENHUM alvo (ausencia de ServiceMonitor) e requer configuracao de monitoracao, nao indica falha.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -511,8 +518,10 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_cpu_do_limite[{#NSNAME}],5m)>{$THANOS.CPU_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de CPU > {$THANOS.CPU_LIMIT_PCT}% do limite'
         priority: WARNING
-        description: Consumo de CPU do namespace {#NSNAME} acima do percentual configurado
-          do limite (throttling provavel).
+        description: |
+          CPU do namespace acima de {$THANOS.CPU_LIMIT_PCT}% do somatorio dos limits por 5 minutos.
+          SIGNIFICADO: containers na borda do limite do pod — risco elevado de CPU throttling e latencia.
+          ACAO: revisar limits de CPU dos pods e a saturacao de replicas (HPA).
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -523,8 +532,10 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_memoria_do_limite[{#NSNAME}],5m)>{$THANOS.MEM_LIMIT_PCT}
         name: 'Namespace {#NSNAME}: uso de memoria > {$THANOS.MEM_LIMIT_PCT}% do limite'
         priority: WARNING
-        description: Consumo de memoria do namespace {#NSNAME} proximo do limite (risco
-          de OOMKill).
+        description: |
+          Memoria do namespace acima de {$THANOS.MEM_LIMIT_PCT}% do somatorio dos limits por 5 minutos.
+          SIGNIFICADO: containers proximos do limite do pod — risco iminente de OOMKill.
+          ACAO: revisar limits de memoria, leaks e tamanho das replicas antes do OOM.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -535,8 +546,10 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_restarts_de_containers_1h[{#NSNAME}],10m)>0
         name: 'Namespace {#NSNAME}: restarts de containers na ultima hora'
         priority: WARNING
-        description: Contadores de restart aumentaram no namespace {#NSNAME} (crashloops,
-          OOM, probes).
+        description: |
+          Contador de restarts de containers aumentou nos ultimos 10 minutos.
+          SIGNIFICADO: pods reiniciando (crashloop, OOMKill, falha de liveness/readiness probe).
+          ACAO: inspecionar eventos do namespace e logs dos pods com restarts; checar trigger de OOMKill correlato.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -547,7 +560,10 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_app_errors_rate[{#NSNAME}],5m)>5
         name: 'Namespace {#NSNAME}: Taxa de erros HTTP 5xx elevada'
         priority: HIGH
-        description: Taxa de erros acima de 5% nos últimos 5 minutos.
+        description: |
+          Taxa de erros HTTP 5xx acima de 5% (golden signal de ERROS) por 5 minutos.
+          SIGNIFICADO: servicos do namespace retornando erros de servidor em nivel elevado.
+          ACAO: verificar logs das aplicacoes do namespace, readiness do pod e dependencias externas.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -558,8 +574,10 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_storage_usage_pct[{#NSNAME}],5m)>85
         name: 'Namespace {#NSNAME}: Uso de Disco > 85%'
         priority: AVERAGE
-        description: Espaço em disco nos volumes do namespace {#NSNAME} próximo do
-          limite.
+        description: |
+          Uso de disco dos volumes persistentes (PVC) acima de 85% por 5 minutos.
+          SIGNIFICADO: espaco do volume proximo do limite — risco de falha de escrita e DiskPressure.
+          ACAO: ampliar o PVC (se storage class permitir) ou fazer limpeza/rotacao de dados.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -570,8 +588,10 @@ zabbix_export:
         expression: change(/OpenShift Thanos API by JS/thanos.namespace_nsname_oomkills_total[{#NSNAME}])>0
         name: 'Namespace {#NSNAME}: OOMKill detectado'
         priority: HIGH
-        description: Um ou mais containers no namespace {#NSNAME} foram mortos por
-          falta de memória (OOMKill).
+        description: |
+          Contador de containers mortos por OOMKill ( falta de memoria ) aumentou.
+          SIGNIFICADO: processo consumiu mais memoria que o limit do container e foi morto pelo kernel.
+          ACAO: aumentar memory limit do container ou investigar leak; o pod sera reiniciado.
         manual_close: 'YES'
         tags:
         - tag: namespace
@@ -653,7 +673,10 @@ zabbix_export:
         expression: min(/OpenShift Thanos API by JS/thanos.namespace_nsname_container_cpu_throttled[{#NSNAME},{#POD},{#CONTAINER}],5m)>0.1
         name: 'Container {#CONTAINER} (Pod {#POD}): CPU Throttling detectado'
         priority: WARNING
-        description: O container está sofrendo throttling de CPU, impactando a performance.
+        description: |
+          Períodos de throttling de CPU por segundo acima de 0.1 por 5 minutos neste container.
+          SIGNIFICADO: uso de CPU excedendo o limit do CFS (periodo de 100ms) — o container esta sendo estrangulado.
+          ACAO: aumentar cpu limit do container ou revisar carga/codigo; impacto direto em latencia.
         manual_close: 'YES'
         tags:
         - tag: namespace
