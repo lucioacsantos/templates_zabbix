@@ -1,0 +1,257 @@
+# dynatrace_sinteticos_sob_demanda.yml
+#
+# Executa sintéticos Dynatrace sob demanda via API v2.
+#
+# Fluxo:
+#   1. Valida variáveis recebidas (token, environment-id, lista de monitor IDs).
+#   2. Dispara um batch de execução (POST /api/v2/synthetic/executions/batch).
+#   3. Aguarda a conclusão do batch com polling (GET /api/v2/synthetic/executions/batch/{batchId}).
+#   4. Exibe o resultado final com status de cada execução.
+#
+# Compatível com Ansible Automation Platform (AAP) — as variáveis abaixo são
+# fornecidas via Survey no Job Template:
+#
+#   dynatrace_environment_id  — ID do ambiente (ex.: abc12345)
+#   dynatrace_api_token       — Token com escopo syntheticExecutions.write/read
+#                               (armazenar como credencial customizada no AAP)
+#   synthetic_monitor_ids     — IDs dos monitores separados por vírgula ou
+#                               lista YAML (ver dynatrace_sinteticos_survey.md)
+#   synthetic_locations       — (Opcional) IDs de locais separados por vírgula
+#   processing_mode           — (Opcional) STANDARD | DISABLE_PROBLEM_DETECTION |
+#                               EXECUTIONS_DETAILS_ONLY  (padrão: STANDARD)
+#   fail_on_performance_issue — (Opcional) true | false  (padrão: false)
+#   stop_on_problem           — (Opcional) true | false  (padrão: false)
+#   poll_interval_seconds     — (Opcional) intervalo de polling em segundos (padrão: 10)
+#   poll_max_attempts         — (Opcional) tentativas máximas de polling (padrão: 30)
+#
+# Uso manual (fora do AAP):
+#   ansible-playbook dynatrace_sinteticos_sob_demanda.yml \
+#     -e "dynatrace_environment_id=abc12345" \
+#     -e "dynatrace_api_token=dt0c01.XXXX" \
+#     -e "synthetic_monitor_ids=HTTP_CHECK-AAA111,SYNTHETIC_TEST-BBB222"
+---
+- name: Executar sintéticos Dynatrace sob demanda
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # --- Valores padrão (sobrescritos pelo Survey do AAP) ---
+    processing_mode: "STANDARD"
+    fail_on_performance_issue: false
+    stop_on_problem: false
+    poll_interval_seconds: 10
+    poll_max_attempts: 30
+
+    # --- Endpoint base (SaaS) ---
+    _dt_base_url: "https://{{ dynatrace_environment_id }}.live.dynatrace.com"
+    _dt_batch_url: "{{ _dt_base_url }}/api/v2/synthetic/executions/batch"
+
+  tasks:
+    # ------------------------------------------------------------------
+    # 1. Validações iniciais
+    # ------------------------------------------------------------------
+    - name: Validar variáveis obrigatórias
+      ansible.builtin.assert:
+        that:
+          - dynatrace_environment_id is defined
+          - dynatrace_environment_id | trim | length > 0
+          - dynatrace_api_token is defined
+          - dynatrace_api_token | trim | length > 0
+          - synthetic_monitor_ids is defined
+          - synthetic_monitor_ids | string | trim | length > 0
+        fail_msg: >-
+          Variáveis obrigatórias ausentes. Certifique-se de que o Survey do AAP
+          define: dynatrace_environment_id, dynatrace_api_token, synthetic_monitor_ids.
+        quiet: true
+
+    # ------------------------------------------------------------------
+    # 2. Normalizar a lista de monitores
+    #    O Survey pode entregar uma string "ID1,ID2,ID3" ou uma lista YAML.
+    # ------------------------------------------------------------------
+    - name: Normalizar monitor IDs para lista
+      ansible.builtin.set_fact:
+        _monitor_list: >-
+          {{
+            synthetic_monitor_ids
+            if (synthetic_monitor_ids is iterable and synthetic_monitor_ids is not string)
+            else (synthetic_monitor_ids | string | split(',') | map('trim') | select('ne', '') | list)
+          }}
+
+    - name: Normalizar locais para lista (opcional)
+      ansible.builtin.set_fact:
+        _locations_list: >-
+          {{
+            synthetic_locations
+            if (synthetic_locations is defined and synthetic_locations is iterable and synthetic_locations is not string)
+            else (
+              (synthetic_locations | string | split(',') | map('trim') | select('ne', '') | list)
+              if (synthetic_locations is defined and synthetic_locations | string | trim | length > 0)
+              else []
+            )
+          }}
+
+    - name: Exibir monitores que serão executados
+      ansible.builtin.debug:
+        msg:
+          - "Monitores     : {{ _monitor_list }}"
+          - "Locais        : {{ _locations_list if _locations_list | length > 0 else '(padrão do monitor)' }}"
+          - "Modo          : {{ processing_mode }}"
+          - "Fail perf     : {{ fail_on_performance_issue }}"
+          - "Stop on prob  : {{ stop_on_problem }}"
+
+    # ------------------------------------------------------------------
+    # 3. Montar payload para a API
+    #    Cada monitor da lista vira um objeto em "monitors[].monitorId".
+    #    Locais são aplicados a todos os monitores se fornecidos.
+    # ------------------------------------------------------------------
+    - name: Montar lista de objetos monitor para o payload
+      ansible.builtin.set_fact:
+        _monitors_payload: "{{ _monitors_payload | default([]) + [_monitor_entry] }}"
+      loop: "{{ _monitor_list }}"
+      loop_control:
+        label: "{{ item }}"
+      vars:
+        _monitor_entry: >-
+          {{
+            {'monitorId': item} if _locations_list | length == 0
+            else {'monitorId': item, 'locations': _locations_list}
+          }}
+
+    - name: Montar payload JSON completo
+      ansible.builtin.set_fact:
+        _batch_payload:
+          monitors: "{{ _monitors_payload }}"
+          processingMode: "{{ processing_mode }}"
+          failOnPerformanceIssue: "{{ fail_on_performance_issue | bool }}"
+          stopOnProblem: "{{ stop_on_problem | bool }}"
+          metadata:
+            triggeredBy: "ansible-automation-platform"
+            playbook: "dynatrace_sinteticos_sob_demanda.yml"
+
+    # ------------------------------------------------------------------
+    # 4. Disparar o batch de execução
+    # ------------------------------------------------------------------
+    - name: Disparar batch de execução sintética (POST)
+      ansible.builtin.uri:
+        url: "{{ _dt_batch_url }}"
+        method: POST
+        headers:
+          Authorization: "Api-Token {{ dynatrace_api_token }}"
+          Content-Type: "application/json"
+        body: "{{ _batch_payload | to_json }}"
+        body_format: json
+        status_code: 201
+        return_content: true
+        timeout: 30
+        validate_certs: true
+      register: _batch_response
+      no_log: true
+
+    - name: Extrair batchId e contagem de disparos
+      ansible.builtin.set_fact:
+        _batch_id: "{{ _batch_response.json.batchId }}"
+        _triggered_count: "{{ _batch_response.json.triggeredCount | default(0) }}"
+        _triggering_problems: "{{ _batch_response.json.triggeringProblemsCount | default(0) }}"
+
+    - name: Exibir resultado do disparo
+      ansible.builtin.debug:
+        msg:
+          - "Batch ID              : {{ _batch_id }}"
+          - "Execuções disparadas  : {{ _triggered_count }}"
+          - "Problemas no disparo  : {{ _triggering_problems }}"
+
+    - name: Exibir detalhes de problemas no disparo (se houver)
+      ansible.builtin.debug:
+        msg: "Problema ao disparar: {{ item.entityId }} — {{ item.cause }} {{ item.details | default('') }}"
+      loop: "{{ _batch_response.json.triggeringProblemsDetails | default([]) }}"
+      loop_control:
+        label: "{{ item.entityId }}"
+      when: _batch_response.json.triggeringProblemsDetails | default([]) | length > 0
+
+    - name: Falhar se nenhuma execução foi disparada
+      ansible.builtin.fail:
+        msg: >-
+          Nenhuma execução sintética foi disparada.
+          Verifique os IDs de monitores e locais fornecidos.
+          Problemas reportados: {{ _batch_response.json.triggeringProblemsDetails | default([]) | to_nice_json }}
+      when: _triggered_count | int == 0
+
+    # ------------------------------------------------------------------
+    # 5. Polling — aguarda o batch terminar
+    # ------------------------------------------------------------------
+    - name: Aguardar conclusão do batch (polling)
+      ansible.builtin.uri:
+        url: "{{ _dt_batch_url }}/{{ _batch_id }}"
+        method: GET
+        headers:
+          Authorization: "Api-Token {{ dynatrace_api_token }}"
+        status_code: 200
+        return_content: true
+        timeout: 30
+        validate_certs: true
+      register: _poll_result
+      no_log: true
+      until: >-
+        _poll_result.json.batchStatus in ['SUCCESS', 'FAILED', 'FAILED_TO_EXECUTE', 'NOT_TRIGGERED']
+      retries: "{{ poll_max_attempts }}"
+      delay: "{{ poll_interval_seconds }}"
+
+    # ------------------------------------------------------------------
+    # 6. Processar e exibir resultado final
+    # ------------------------------------------------------------------
+    - name: Extrair resumo do batch
+      ansible.builtin.set_fact:
+        _batch_status: "{{ _poll_result.json.batchStatus }}"
+        _executed_count: "{{ _poll_result.json.executedCount | default(0) }}"
+        _failed_count: "{{ _poll_result.json.failedCount | default(0) }}"
+        _failed_to_execute_count: "{{ _poll_result.json.failedToExecuteCount | default(0) }}"
+
+    - name: Exibir resumo final do batch
+      ansible.builtin.debug:
+        msg:
+          - "=== Resultado do Batch {{ _batch_id }} ==="
+          - "Status geral          : {{ _batch_status }}"
+          - "Total disparado       : {{ _triggered_count }}"
+          - "Executados            : {{ _executed_count }}"
+          - "Falhos                : {{ _failed_count }}"
+          - "Falha ao executar     : {{ _failed_to_execute_count }}"
+
+    - name: Exibir execuções com falha (se houver)
+      ansible.builtin.debug:
+        msg: >-
+          FALHA — Monitor: {{ item.monitorId }}
+          | Local: {{ item.locationId | default('N/A') }}
+          | Estágio: {{ item.executionStage | default('N/A') }}
+          | Mensagem: {{ item.failureMessage | default(item.errorCode | default('N/A')) }}
+      loop: "{{ _poll_result.json.failedExecutions | default([]) }}"
+      loop_control:
+        label: "{{ item.monitorId | default(item.executionId) }}"
+      when: _poll_result.json.failedExecutions | default([]) | length > 0
+
+    - name: Exibir execuções que falharam ao ser executadas (timeout / engine)
+      ansible.builtin.debug:
+        msg: >-
+          TIMEOUT/ENGINE — Monitor: {{ item.monitorId }}
+          | Local: {{ item.locationId | default('N/A') }}
+          | Estágio: {{ item.executionStage }}
+          | Execution ID: {{ item.executionId }}
+      loop: "{{ _poll_result.json.failedToExecute | default([]) }}"
+      loop_control:
+        label: "{{ item.monitorId | default(item.executionId) }}"
+      when: _poll_result.json.failedToExecute | default([]) | length > 0
+
+    - name: Falhar o playbook se o batch terminou com erro
+      ansible.builtin.fail:
+        msg: >-
+          O batch {{ _batch_id }} terminou com status '{{ _batch_status }}'.
+          Falhas: {{ _failed_count }} | Falhou ao executar: {{ _failed_to_execute_count }}.
+          Consulte os detalhes acima e o Dynatrace para mais informações.
+      when: _batch_status in ['FAILED', 'FAILED_TO_EXECUTE']
+
+    - name: Sucesso — todos os sintéticos executaram sem erros
+      ansible.builtin.debug:
+        msg: >-
+          Batch {{ _batch_id }} concluído com sucesso.
+          {{ _executed_count }} execução(ões) aprovada(s) de {{ _triggered_count }} disparada(s).
+      when: _batch_status == 'SUCCESS'
