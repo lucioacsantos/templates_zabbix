@@ -1,0 +1,47 @@
+---
+- name: Consulta e Altera o Timeout Cache AAP
+  hosts: localhost
+  gather_facts: false
+
+  vars_files: vars/token.yml
+  
+  tasks:
+    - name: Coleta o valor atual
+      ansible.builtin.uri:
+        url: https://automation.energia.org.br/api/v2/settings/jobs/
+        headers:
+          Authorization: "Bearer {{ meu_token }}"
+        validate_certs: false
+        method: GET
+      register: result_cache
+
+    - name: Cria uma variável com o valor atual
+      ansible.builtin.set_fact:
+        valor_atual: "{{ result_cache.json.ANSIBLE_FACT_CACHE_TIMEOUT }}"
+
+    - name: Muda o valor atual para 300
+      ansible.controller.settings:
+        controller_oauthtoken: "{{ meu_token }}"
+        controller_host: https://automation.energia.org.br
+        validate_certs: false
+        name: ANSIBLE_FACT_CACHE_TIMEOUT
+        value: 300
+
+    - name: Pausa a execução por 5 segundos
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Executa o job de coleta
+      ansible.controller.job_launch:
+        controller_oauthtoken: "{{ meu_token }}"
+        controller_host: https://automation.energia.org.br
+        validate_certs: false
+        job_template: "Coletor Facts"
+
+    - name: Muda o valor de volta para {{ valor_atual }}
+      ansible.controller.settings:
+        controller_oauthtoken: "{{ meu_token }}"
+        controller_host: https://automation.energia.org.br
+        validate_certs: false
+        name: ANSIBLE_FACT_CACHE_TIMEOUT
+        value: "{{ valor_atual }}"

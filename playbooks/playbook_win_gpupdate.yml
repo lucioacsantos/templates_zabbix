@@ -1,0 +1,12 @@
+---
+- name: Executar comando em ativos Windows
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+  tasks:
+    # Executa comando gpupdate /force
+    - name: Executa comando gpupdate /force
+      ansible.windows.win_command: gpupdate /force
+      register: gpupdate_output

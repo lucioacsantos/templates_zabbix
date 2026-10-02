@@ -1,0 +1,96 @@
+---
+# Vars via Survey:
+#   acao: START | STOP
+
+############################################
+# Confluence — HOMOLOGAÇÃO (hxwk04)
+############################################
+- name: Confluence — HOMOLOGAÇÃO (hxwk04)
+  hosts: hxwk04.energia.org.br
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Start Confluence (HOMOL)
+      ansible.builtin.command:
+        cmd: ./start-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    - name: Stop Confluence (HOMOL)
+      ansible.builtin.command:
+        cmd: ./stop-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Verificar PIDs Confluence (zumbis HOMOL)
+      ansible.builtin.shell: "jps -l | egrep 'org\\.apache\\.catalina\\.startup\\.Bootstrap|synchrony\\.core' | awk '{print $1}'"
+      register: pids_conf_np
+      changed_when: false
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Matar PIDs Confluence (HOMOL)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_conf_np.stdout_lines }}"
+      when: acao == 'STOP' and pids_conf_np.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+
+############################################
+# Confluence — PRODUÇÃO (pxwk04)
+############################################
+- name: Confluence — PRODUÇÃO (pxwk04)
+  hosts: pxwk04.energia.org.br
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Start Confluence (PROD)
+      ansible.builtin.command:
+        cmd: ./start-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    - name: Stop Confluence (PROD)
+      ansible.builtin.command:
+        cmd: ./stop-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Verificar PIDs Confluence (zumbis PROD)
+      ansible.builtin.shell: "jps -l | egrep 'org\\.apache\\.catalina\\.startup\\.Bootstrap|synchrony\\.core' | awk '{print $1}'"
+      register: pids_conf
+      changed_when: false
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Matar PIDs Confluence (PROD)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_conf.stdout_lines }}"
+      when: acao == 'STOP' and pids_conf.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

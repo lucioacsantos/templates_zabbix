@@ -1,0 +1,59 @@
+---
+- name: EXECUTANDO YUM UPDATE EM SERVIDORES COM EXCEÇÕES OPENLDAP
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    prioridade: "{{ prioridade | default('NÃO') }}"
+
+  vars_files:
+    - vars/playbook_vars_inventarios.yml
+
+  tasks:
+    - name: Executar atualização de pacotes nos servidores prioritários
+      block:
+        - name: Atualizar pacotes dos servidores padrão
+          ansible.builtin.yum:
+            name: "*"
+            state: latest
+            disable_gpg_check: true
+          register: yum_update_result
+          when: "'xat' not in inventory_hostname"
+        
+        - name: Atualizar pacotes dos servidores OpenLDAP
+          ansible.builtin.yum:
+            name: "*"
+            state: latest
+            exclude: openldap*
+            disable_gpg_check: true
+          register: yum_update_result
+          when: "'xat' in inventory_hostname"
+        
+        - name: Executar limpeza do cache do yum
+          ansible.builtin.shell:
+            cmd: yum clean all
+      when: prioridade == 'SIM' and inventory_hostname in prioritarios_homol + prioritarios_producao
+    
+    - name: Executar atualização de pacotes nos servidores não prioritários
+      block:
+        - name: Atualizar pacotes dos servidores padrão
+          ansible.builtin.yum:
+            name: "*"
+            state: latest
+            disable_gpg_check: true
+          register: yum_update_result
+          when: "'xat' not in inventory_hostname"
+        
+        - name: Atualizar pacotes dos servidores OpenLDAP
+          ansible.builtin.yum:
+            name: "*"
+            state: latest
+            exclude: openldap*
+            disable_gpg_check: true
+          register: yum_update_result
+          when: "'xat' in inventory_hostname"
+        
+        - name: Executar limpeza do cache do yum
+          ansible.builtin.shell:
+            cmd: yum clean all
+      when: prioridade == 'NÃO' and inventory_hostname not in prioritarios_homol + prioritarios_producao

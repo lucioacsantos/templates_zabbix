@@ -1,0 +1,23 @@
+---
+- name: ATUALIZAÇÃO DO ZABBIX AGENT2
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  vars_files:
+    - vars/playbook_vars_zabbix.yml
+  vars:
+    servidores: all
+  tasks:
+    - name: Download do pacote de instalação
+      ansible.windows.win_get_url:
+        url: https://nexus.energia.org.br/repository/zabbix/zabbix_agent2/zabbix_agent2-{{ versao_maior }}-latest-windows-amd64-openssl.msi
+        dest: C:\Temp
+    - name: Verificando arquivo copiado
+      ansible.windows.win_stat:
+        path: C:\Temp\zabbix_agent2-{{ versao_maior }}-latest-windows-amd64-openssl.msi
+      register: msi_file
+    - name: Instalando pacote MSI
+      ansible.windows.win_package:
+        path: C:\Temp\zabbix_agent2-{{ versao_maior }}-latest-windows-amd64-openssl.msi
+        arguments: /qn SERVER=10.63.1.206
+        state: present
+      when: msi_file.stat.exists

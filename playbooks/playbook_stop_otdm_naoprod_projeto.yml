@@ -1,0 +1,25 @@
+---
+- name: OTDM NÃO PRODUÇÃO/PROJETO
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vars/playbook_comandos_stop_otdm_naoprod_projeto.yml
+    - vars/playbook_comandos_stop_otdm_naoprod_lab.yml
+
+  tasks:
+    - name: PARADA DE SERVIÇOS
+      block:
+        - name: Parando serviços PROJETO
+          loop: "{{ comandos_projeto }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_stop_java.yml
+      when: ambiente == 'PROJETO'
+
+    - name: Ambiente LAB
+      block:
+        - name: Parando serviços LAB
+          loop: "{{ comandos_lab }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_stop_java.yml
+      when: ambiente == 'LAB'

@@ -1,0 +1,27 @@
+---
+- name: START JS7 — HOMOLOGAÇÃO (hxwl02)
+  hosts: hxwl02.energia.org.br
+  become: true
+  become_user: usrjobscheduler
+  gather_facts: false
+
+  vars:
+    jetty_dir: /home/usrjobscheduler/sos-berlin.com/js7/joc/jetty/bin
+    controller_dir: /opt/aplicacoes/js7/controller/bin
+
+  tasks:
+    - name: Start Controller
+      ansible.builtin.command: ./controller.sh start
+      args:
+        chdir: "{{ controller_dir }}"
+      async: 600
+      poll: 5
+      failed_when: false
+
+    - name: Start JOC/Jetty
+      ansible.builtin.command: ./jetty.sh start
+      args:
+        chdir: "{{ jetty_dir }}"
+      async: 600
+      poll: 5
+      failed_when: false

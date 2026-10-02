@@ -1,0 +1,38 @@
+---
+- name: Colocar em manutenção os Hosts e Host Groups
+  hosts: all
+  gather_facts: false
+
+  vars: 
+    ansible_network_os: community.zabbix.zabbix
+    ansible_connection: httpapi
+    ansible_httpapi_port: 443
+    ansible_httpapi_use_ssl: true
+    ansible_httpapi_validate_certs: false
+    ansible_host: hommis.energia.org.br
+  
+  tasks:
+    - name: Set credentials to access Zabbix Server API
+      ansible.builtin.set_fact:
+        ansible_user: "{{ zuser }}"
+        ansible_httpapi_pass: "{{ zpass }}"
+    
+    - name: Criando manutenção por Host
+      community.zabbix.zabbix_maintenance:
+        name: "{{ name_maintenance }}"
+        host_name: "{{vhost_name | trim}}"
+        desc: "{{ description }}" 
+        minutes: "{{ time }}"
+        state: present
+        collect_data: "{{ collect }}"
+      when: manut == 'Hosts'
+
+    - name: Criando manutenção por Grupo
+      community.zabbix.zabbix_maintenance:
+        name: "{{ name_maintenance }}"
+        host_group: "{{vhost_group | trim}}"
+        desc: "{{ description }}" 
+        minutes: "{{ time }}"
+        state: present
+        collect_data: "{{ collect }}"
+      when: manut == 'Host Group'

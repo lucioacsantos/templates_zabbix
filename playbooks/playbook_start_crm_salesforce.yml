@@ -1,0 +1,16 @@
+---
+- name: START CRM-SalesForce
+  hosts: pxca02.energia.org.br
+  gather_facts: false
+
+  tasks:
+    - name: Start CRM-SalesForce (PROD)
+      ansible.builtin.command:
+        cmd: ./START_CRM
+        chdir: /opt/aplicacoes/scripts/crm
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      

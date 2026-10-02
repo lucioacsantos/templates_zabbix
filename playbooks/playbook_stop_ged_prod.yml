@@ -1,0 +1,16 @@
+---
+- name: STOP GED + MONITORAMENTO — PRODUÇÃO
+  hosts: pxdk01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Stop serviços MONITORAMENTO
+      ansible.builtin.command:
+        cmd: docker-compose down
+        chdir: /opt/project/monitoramento
+        
+    - name: Stop serviços GED
+      ansible.builtin.command:
+        cmd: docker-compose down
+        chdir: /opt/project/docker-compose-alfresco

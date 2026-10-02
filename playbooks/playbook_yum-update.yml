@@ -1,0 +1,38 @@
+# Playbook para atualizar pacotes usando yum, com tratamento específico para servidores não prioritários e OpenLDAP.
+---
+- name: Executar yum update
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+
+  vars_files:
+    # Arquivo de variáveis para inventários
+    - vars/playbook_vars_inventarios.yml
+
+  tasks:
+    - name: Estrutura de atualização para servidores padrão
+      block:
+        - name: Atualizar pacotes dos servidores não prioritários
+          ansible.builtin.yum:
+            name: "*"
+            state: latest
+            disable_gpg_check: true
+          register: yum_update_result
+          when: "'xat' not in inventory_hostname"
+        
+        - name: Atualizar pacotes dos servidores OpenLDAP
+          ansible.builtin.yum:
+            name: "*"
+            state: latest
+            exclude: openldap*
+            disable_gpg_check: true
+          register: yum_update_result
+          when: "'xat' in inventory_hostname"
+        
+        - name: Executar limpeza do cache do yum
+          ansible.builtin.shell:
+            cmd: yum clean all
+      when: inventory_hostname not in prioritarios_homol and inventory_hostname not in prioritarios_producao

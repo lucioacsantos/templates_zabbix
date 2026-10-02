@@ -1,0 +1,32 @@
+---
+- name: Stop Confluence — Homologação
+  hosts: hxwk04.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Executar stop do Confluence
+      ansible.builtin.command:
+        cmd: ./stop-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar processos Java
+      ansible.builtin.shell: "jps -l | egrep 'org\\.apache\\.catalina\\.startup\\.Bootstrap|synchrony\\.core' | awk '{print $1}'"
+      register: confluence_pids
+      changed_when: false
+      failed_when: false
+
+    - name: Matar processos Java
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ confluence_pids.stdout_lines }}"
+      when: confluence_pids.stdout_lines | length > 0
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false
+

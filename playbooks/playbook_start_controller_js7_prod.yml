@@ -1,0 +1,25 @@
+---
+- name: Start Controller JS7 — PRODUÇÃO (pxwl02)
+  hosts: pxwl02.energia.org.br
+  become: true
+  become_flags: '-i'
+  gather_facts: false
+
+  tasks:
+    - name: Start Controller (PROD)
+      ansible.builtin.command:
+        cmd: ./controller.sh start
+        chdir: /opt/aplicacoes/js7/controller/bin/
+      become_user: usrjobscheduler
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Validar PIDs do Controller
+      ansible.builtin.shell: "pgrep -u usrjobscheduler -f 'js7.*controller' | xargs -r echo"
+      register: ctrl_pids
+      changed_when: false
+      failed_when: ctrl_pids.stdout | length == 0
+      args:
+        warn: false

@@ -1,0 +1,16 @@
+---
+- name: Start Bitbucket — PRODUÇÃO (pxcd01)
+  hosts: pxcd01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start Bitbucket
+      ansible.builtin.command:
+        cmd: ./atlbitbucket start
+        chdir: /opt/aplicacoes/bitbucket/scripts
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

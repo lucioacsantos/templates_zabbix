@@ -1,0 +1,26 @@
+# Playbook para verificar a versão do Java em hosts definidos no inventário e atualizar as alternativas, se necessário.
+# O playbook é configurado para ser executado em todos os hosts, mas pode ser filtrado usando a variável 'servidores'
+# para especificar um grupo ou host específico. O playbook inclui tarefas para verificar a versão do Java instalada,
+# comparar com a versão desejada e atualizar as alternativas do sistema para apontar para a nova versão, se necessário.
+---
+- name: VERIFICAÇÃO DA ATUALIZAÇÃO DO JAVA21 PARA AGENTE/SERVIDOR JS7
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+
+  vars_files:
+    - vars/playbook_task_versao_rpm.yml
+    - vars/playbook_task_atualiza_alternative.yml
+    - vars/playbook_vars_js7.yml
+
+  tasks:    
+    - name: Verifica Versão do {{ software }}
+      ansible.builtin.include_tasks:
+        file: tasks/playbook_task_versao_rpm.yml
+
+    - name: Atualizando "alternatives" para {{ alternative }}
+      ansible.builtin.include_tasks:
+        file: tasks/playbook_task_atualiza_alternative.yml

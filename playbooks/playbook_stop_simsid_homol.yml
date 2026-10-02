@@ -1,0 +1,31 @@
+---
+- name: Stop SimSID — Homologação
+  hosts: hxjs03.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Executar stop do SimSID
+      ansible.builtin.command:
+        cmd: ./simsid-stop.sh
+        chdir: /opt/aplicacoes/simsid/scripts
+      become_user: usrsimsid
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar processos Java SimSID
+      ansible.builtin.shell: "jps -l | egrep 'simsid-web-6\\.2\\.6-SNAPSHOT\\.jar' | awk '{print $1}'"
+      register: simsid_pids
+      changed_when: false
+      failed_when: false
+
+    - name: Matar processos Java SimSID
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ simsid_pids.stdout_lines }}"
+      when: simsid_pids.stdout_lines | length > 0
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false

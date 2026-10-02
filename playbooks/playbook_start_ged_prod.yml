@@ -1,0 +1,16 @@
+---
+- name: START GED + MONITORAMENTO — PRODUÇÃO
+  hosts: pxdk01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start serviços GED
+      ansible.builtin.command:
+        cmd: docker-compose up -d
+        chdir: /opt/project/docker-compose-alfresco
+
+    - name: Start serviços MONITORAMENTO
+      ansible.builtin.command:
+        cmd: docker-compose up -d
+        chdir: /opt/project/monitoramento

@@ -1,0 +1,16 @@
+---
+- name: Instalar yum-utils, executar yum update e reiniciar se necessário
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  tasks:
+    - name: Instalar o pacote yum-utils
+      ansible.builtin.yum:
+        name: yum-utils
+        state: present
+
+    - name: Atualizar pacotes com yum
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+        download_only: true

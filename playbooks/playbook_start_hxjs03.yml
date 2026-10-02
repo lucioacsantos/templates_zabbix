@@ -1,0 +1,51 @@
+---
+- name: Start de serviços HXJS03
+  hosts: hxjs03.energia.org.br
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - vars/playbook_vars_producao.yml
+
+  vars:
+    - nome: Start CloudCMD
+      diretorio: /opt/aplicacoes/cloudcmd/scripts
+      comando: recicla_cloudcmd start
+      user: usrcloudcmd
+      server: hxjs03
+      servico_jps: naojava
+    
+    - nome: Start SimSID
+      diretorio: /opt/aplicacoes/simsid/scripts
+      comando: executa_simsid.sh
+      user: usrsimsid
+      server: hxjs03
+      servico_jps: simsid-web-6.2.6-SNAPSHOT.jar
+    
+    - nome: Start Coleta Ativa
+      diretorio: /opt/aplicacoes/nscl/hxjs03/homol_projeto/scde/coleta-ativa/
+      comando: NEW-Script_ColetaAtiva.sh
+      user: producao
+      server: hxjs03
+      servico_jps: Collect
+    
+    - nome: Start Agent 4445
+      diretorio: /opt/aplicacoes/js7_agent/bin
+      comando: agent_4445.sh start
+      user: producao
+      server: hxjs03
+      servico_jps: AgentMain
+
+    - nome: Start Agent 44445
+      diretorio: /opt/aplicacoes/js7_homol_agent/bin
+      comando: agent_44445.sh start
+      user: producao
+      server: hxjs03
+      servico_jps: AgentMain
+
+  tasks:
+    - name: Iniciar serviços
+      loop: "{{ comandos }}"
+      ansible.builtin.include_tasks:
+            file: tasks/playbook_task_start_java.yml
+      when: ambiente  == 'NAO_PROD'

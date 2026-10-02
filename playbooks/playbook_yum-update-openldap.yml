@@ -1,0 +1,17 @@
+---
+- name: Atualizar o sistema
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  tasks:
+    - name: Atualizar todos os pacotes instalados usando yum
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+        exclude: openldap*
+        update_only: yes
+        disable_gpg_check: true
+
+    - name: Executar limpeza do cache do yum
+      ansible.builtin.shell:
+        cmd: yum clean all

@@ -1,0 +1,124 @@
+- name: ATUALIZAÇÃO DO AGENTE ZABBIX PARA WINDOWS {{ versao_maior }}
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vars/playbook_vars_zabbix.yml
+    - vars/playbook_vars_nexus.yml
+    - vars/playbook_vars_bitbucket.yml
+
+  vars:
+    versao_agente_path: "/tmp/zabbix_agent2.cfg"
+    target_file: "vars/playbook_vars_zabbix.yml"
+    lista_versoes: []
+    regex_pega_versao: '[0-9]{1}\.[0-9]{1}\.[0-9]{1,2}'
+    commit_message: "Atualização do arquivo playbook_vars_zabbix.yml"
+    repo_path: "patch_management"
+
+  tasks:
+    - name: Ler conteúdo zabbix_agent2.cfg
+      ansible.builtin.uri:
+        url: https://nexus.energia.org.br/repository/zabbix/zabbix_agent2/zabbix_agent2.cfg
+        method: GET
+        return_content: true
+        validate_certs: false
+      register: zabbix_config_response
+
+    - name: Converter conteúdo YAML em variáveis
+      ansible.builtin.set_fact:
+        zabbix_config: "{{ zabbix_config_response.content | from_yaml }}"
+
+    - name: Ajustando variáveis
+      ansible.builtin.set_fact:
+        versao_maior: "{{ zabbix_config.versao_maior }}"
+        versao_menor: "{{ zabbix_config.versao_menor }}"
+        atualizar: "{{ zabbix_config.atualizar }}"
+    
+    - name: Obter conteúdo da página HTML
+      ansible.builtin.uri:
+        url: "{{ zabbix_url }}"
+        method: GET
+        return_content: true
+        validate_certs: false
+      register: webpage
+    
+    - name: Remover temporário zabbix_agent2.cfg
+      ansible.builtin.file:
+        path: "{{ versao_agente_path }}"
+        state: absent
+
+    - name: Remover temporário zabbix_agent2.cfg
+      ansible.builtin.file:
+        path: "{{ agent_file_path }}"
+        state: absent
+      
+    - name: Obter zabbix_agent2.cfg
+      ansible.builtin.get_url:
+        url: https://nexus.energia.org.br/repository/zabbix/zabbix_agent2/zabbix_agent2.cfg
+        dest: "{{ versao_agente_path }}"
+        mode: '0644'
+        validate_certs: false
+      register: zabbix_config_response
+
+    - name: Gera lista de versões disponíveis
+      no_log: true
+      loop: "{{ webpage.content | split('\n') }}"
+      when: item is regex(regex_pega_versao)
+      ansible.builtin.set_fact:
+        lista_versoes: "{{ lista_versoes + [item | regex_search(regex_pega_versao)] }}"
+
+    - name: Identifica maior versão na lista
+      ansible.builtin.set_fact:
+        ultima_versao: "{{ lista_versoes | community.general.version_sort | last }}"
+    
+    - name: Mostrar só a última parte da versão
+      ansible.builtin.debug:
+        msg: "{{ ultima_versao.split('.')[-1] }}"
+    
+    - name: Extrair apenas os números finais como inteiros
+      ansible.builtin.set_fact:
+        zabbix_latest_minor: "{{ ultima_versao.split('.')[-1] }}"
+    
+    - name: Executar download se a versão for maior
+      ansible.builtin.include_tasks:
+        file: tasks/playbook_task_download_internet.yml
+      when: (zabbix_latest_minor | int) > (versao_menor | int)
+
+    - name: Definir caminho do Agente para upload
+      ansible.builtin.set_fact:
+        upload_file_path: "{{ agent_file_path }}"
+
+    - name: Executar upload do instalador se a versão for maior
+      ansible.builtin.include_tasks:
+        file: tasks/playbook_task_upload_nexus.yml
+      when: (zabbix_latest_minor | int) > (versao_menor | int)
+
+    - name: Marcar atualizar como true se versão for maior
+      ansible.builtin.replace:
+        path: "{{ versao_agente_path }}"
+        regexp: '^atualizar:.*$'
+        replace: "atualizar: true"
+      when: (zabbix_latest_minor | int) > (versao_menor | int)
+
+    - name: Marcar atualizar como false se versão for igual ou menor
+      ansible.builtin.replace:
+        path: "{{ versao_agente_path }}"
+        regexp: '^atualizar:.*$'
+        replace: "atualizar: false"
+      when: (zabbix_latest_minor | int) <= (versao_menor | int)
+
+    - name: Atualizar versao_menor
+      ansible.builtin.replace:
+        path: "{{ versao_agente_path }}"
+        regexp: '^versao_menor:.*$'
+        replace: "versao_menor: {{ zabbix_latest_minor }}"
+      when: (zabbix_latest_minor | int) > (versao_menor | int)
+
+    - name: Definir caminho do zabbix_agent2.cfg para upload
+      ansible.builtin.set_fact:
+        upload_file_path: "{{ versao_agente_path }}"
+        nessus_dest_path: "zabbix_agent2/zabbix_agent2.cfg"
+
+    - name: Executar upload do zabbix_agent2.cfg
+      ansible.builtin.include_tasks:
+        file: tasks/playbook_task_upload_nexus.yml

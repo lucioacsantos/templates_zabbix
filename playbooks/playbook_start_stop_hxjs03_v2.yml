@@ -1,0 +1,180 @@
+---
+# Vars via Survey:
+#   acao: START | STOP
+
+- name: START/STOP hxjs03 (homologação) - (CloudCMD, SimSID, Coleta Ativa, Js7Agent Prod, Js7Agent Hom)
+  hosts: hxjs03.energia.org.br
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - vars/playbook_vars_producao.yml
+
+  tasks:
+    # ===== START =====
+    - name: Start CloudCMD (homologação)
+      ansible.builtin.command:
+        cmd: ./recicla_cloudcmd start
+        chdir: /opt/aplicacoes/cloudcmd/scripts
+      when: acao == 'START'
+      become_user: usrcloudcmd
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+
+    - name: Start SimSID (homologação)
+      ansible.builtin.command:
+        cmd: ./executa_simsid.sh
+        chdir: /opt/aplicacoes/simsid/scripts
+      when: acao == 'START'
+      become_user: usrsimsid
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+
+    - name: Start Coleta Ativa (homologação)
+      ansible.builtin.command:
+        cmd: ./NEW-Script_ColetaAtiva.sh
+        chdir: /opt/aplicacoes/nscl/hxjs03/homol_projeto/scde/coleta-ativa/
+      when: acao == 'START'
+      become_user: producao
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+  
+    - name: Start Js7Agent 44445
+      ansible.builtin.command:
+        cmd: ./agent_44445.sh start
+        chdir: /opt/aplicacoes/js7_homol_agent/bin
+      when: acao == 'START'
+      become_user: producao
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+
+    # ===== STOP =====
+    - name: Stop CloudCMD (homologação)
+      ansible.builtin.command:
+        cmd: ./recicla_cloudcmd stop
+        chdir: /opt/aplicacoes/cloudcmd/scripts
+      become_user: usrcloudcmd
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Stop SimSID (homologação)
+      ansible.builtin.command:
+        cmd: ./simsid-stop.sh
+        chdir: /opt/aplicacoes/simsid/scripts
+      when: acao == 'STOP'
+      become_user: usrsimsid
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+
+    - name: Stop Coleta Ativa (homologação)
+      ansible.builtin.command:
+        cmd: ./coletaativa_stop.sh
+        chdir: /opt/aplicacoes/nscl/hxjs03/homol_projeto/scde/coleta-ativa/
+      when: acao == 'STOP'
+      become_user: producao
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+    
+    - name: Stop Js7Agent 44445
+      ansible.builtin.command:
+        cmd: ./agent_44445.sh stop
+        chdir: /opt/aplicacoes/js7_homol_agent/bin
+      when: acao == 'STOP'
+      become_user: producao
+      changed_when: true
+      failed_when: false
+      async: 600
+      poll: 5
+
+    # ===== Tratamento STOP =====
+    
+    # CloudCMD 
+    - name: Verificar PIDs CloudCMD (Node.js)
+      ansible.builtin.shell: "pgrep -u usrcloudcmd -f 'node .*cloudcmd' || true"
+      register: pids_cloudcmd
+      changed_when: false
+      failed_when: false
+      async: 600
+      poll: 5
+      when: acao == 'STOP'
+
+    - name: Kill PIDs CloudCMD
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_cloudcmd.stdout_lines }}"
+      when: acao == 'STOP' and (pids_cloudcmd.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    # Java (SimSID)
+    - name: Verificar PIDs SimSID (Java)
+      ansible.builtin.shell: "jps -l | egrep 'simsid-web-6\\.2\\.6-SNAPSHOT\\.jar' | awk '{print $1}'"
+      register: pids_simsid
+      changed_when: false
+      failed_when: false
+      async: 600
+      poll: 5
+      when: acao == 'STOP'
+
+    - name: Kill PIDs SimSID
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_simsid.stdout_lines }}"
+      when: acao == 'STOP' and (pids_simsid.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      failed_when: false
+      changed_when: true
+
+    # Java (Coleta Ativa)
+    - name: Verificar PIDs Coleta Ativa (Java)
+      ansible.builtin.shell: "jps -l | egrep 'br\\.org\\.energia\\.scde\\.collect\\.active\\.Collect' | awk '{print $1}'"
+      register: pids_coleta
+      changed_when: false
+      failed_when: false
+      async: 600
+      poll: 5
+      when: acao == 'STOP'
+
+    - name: Kill PIDs Coleta Ativa
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_coleta.stdout_lines }}"
+      when: acao == 'STOP' and (pids_coleta.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      failed_when: false
+      changed_when: true
+
+    # Java (JS7)
+    - name: Verificar PIDs JS7 Agents (Java)
+      ansible.builtin.shell: "jps -l | egrep 'js7\\.agent\\.main\\.AgentMain' | awk '{print $1}'"
+      register: pids_js7
+      changed_when: false
+      failed_when: false
+      async: 600
+      poll: 5
+      when: acao == 'STOP'
+
+    - name: Kill PIDs JS7 Agents
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_js7.stdout_lines }}"
+      when: acao == 'STOP' and (pids_js7.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      failed_when: false
+      changed_when: true

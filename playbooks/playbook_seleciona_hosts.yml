@@ -1,0 +1,40 @@
+---
+- name: Selecionar hosts conforme o ambiente
+  hosts: all
+  gather_facts: false
+
+  vars:
+    ambiente_hosts: []
+    tipo: ""
+    prioridade: ""
+
+  tasks:
+    - name: Setup
+      ansible.builtin.setup:
+        gather_subset:
+          - '!all,!min'
+          - local
+
+    - name: Adicionando Tag
+      ansible.builtin.set_fact:
+        ambiente_label: 'ambiente'
+      when: ansible_local.arquivo.info.prioridade == prioridade and ansible_local.arquivo.info.tipo == tipo
+    
+    - name: Adicionar hosts ao grupo dinamicamente
+      ansible.builtin.group_by:
+        key: "{{ ambiente_label }}"
+
+- name: Agregar hosts do ambiente
+  hosts: ambiente
+  gather_facts: false
+  tasks:
+    - name: Criar lista de hosts no ambiente
+      ansible.builtin.set_fact:
+        ambiente_hosts: "{{ groups['ambiente'] }}"
+      run_once: true
+
+    - name: Registrar hosts para workflow
+      ansible.builtin.set_stats:
+        data:
+          var_hosts: "{{ ambiente_hosts }}"
+      run_once: true

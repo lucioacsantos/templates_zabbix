@@ -1,0 +1,58 @@
+---
+- name: Sinercom — PRODUÇÃO (STOP)
+  hosts: pxas02.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Stop Sinercom (Components)
+      ansible.builtin.command:
+        cmd: ./Stop_Run_Components
+        chdir: /opt/aplicacoes/sinercom/tomcat/pxas02/scripts/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Stop Sinercom (WEB)
+      ansible.builtin.command:
+        cmd: ./stopWEB
+        chdir: /opt/aplicacoes/sinercom/tomcat/pxas02/scripts/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    # Zumbis
+    - name: Verificar PIDs Sinercom (Components)
+      ansible.builtin.shell: "jps -l | egrep 'StartAllComponents' | awk '{print $1}'"
+      register: pids_sinercom_components
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs Sinercom (Components)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_sinercom_components.stdout_lines }}"
+      when: pids_sinercom_components.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar PIDs Sinercom (WEB)
+      ansible.builtin.shell: "jps -l | egrep 'Bootstrap' | awk '{print $1}'"
+      register: pids_sinercom_web
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs Sinercom (WEB)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_sinercom_web.stdout_lines }}"
+      when: pids_sinercom_web.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      

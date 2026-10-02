@@ -1,0 +1,126 @@
+---
+- name: Start de serviços Protheus - License Server Não Produção
+  hosts: dxer03.energia.org.br
+  become: true
+  gather_facts: false
+    
+  tasks:
+    - name: Iniciar serviço
+      ansible.builtin.systemd:
+        name: licenseserver
+        state: started
+      async: 600
+      poll: 5  
+      when: ambiente  == 'NAO_PROD'
+    
+    - name: Aguardar 10 segundos
+      ansible.builtin.pause:
+        seconds: 10
+      when: ambiente  == 'NAO_PROD'
+
+- name: Start de serviços Protheus Dev - DBAccess Não Produção
+  hosts: dxer02.energia.org.br
+  become: true
+  gather_facts: false
+    
+  tasks:
+    - name: Iniciar serviços
+      ansible.builtin.systemd:
+        name: totvsdbaccess
+        state: started
+      when: ambiente  == 'NAO_PROD'
+
+- name: Start de serviços Protheus Hom - DBAccess Não Produção
+  hosts: hxer04.energia.org.br
+  become: true
+  gather_facts: false
+    
+  tasks:
+    - name: Iniciar serviços
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - totvsdbaccess
+        - totvsdbaccess_tss
+      when: ambiente  == 'NAO_PROD'
+
+    - name: Aguardar 10 segundos
+      ansible.builtin.pause:
+        seconds: 10
+      when: ambiente  == 'NAO_PROD'
+
+- name: Start de serviços Protheus Não Produção
+  hosts: dxer01.energia.org.br, hxer03.energia.org.br
+  become: true
+  gather_facts: false
+    
+  tasks:
+    - name: Iniciar serviços no dxer01
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - appsrv_dev_rh_protheus
+        - appsrv_dev_fin_protheus
+        - appsrv_dev_lab_protheus
+      when: inventory_hostname == "dxer01.energia.org.br" and ambiente  == 'NAO_PROD'
+
+    - name: Iniciar serviços no hxer03
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - appsrv_tmtin_protheus
+        - appsrv_tmproj_protheus
+        - appsrv_tmhom_protheus
+      when: inventory_hostname == "hxer03.energia.org.br" and ambiente  == 'NAO_PROD'
+
+- name: Start de serviços Protheus - License Server PRODUÇÃO
+  hosts: pxer05.energia.org.br
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Iniciar serviço no pxer05
+      ansible.builtin.systemd:
+        name: licenseserver
+        state: started
+      when: ambiente  == 'PROD'
+
+    - name: Aguardar 10 segundos
+      ansible.builtin.pause:
+        seconds: 10
+      when: ambiente  == 'PROD'
+
+- name: Start de serviços Protheus - DBAccess PRODUÇÃO
+  hosts: pxer06.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Iniciar serviços no pxer06
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - totvsdbaccess
+        - totvsdbaccess_tss
+      when: ambiente  == 'PROD'
+
+    - name: Aguardar 10 segundos
+      ansible.builtin.pause:
+        seconds: 10
+      when: ambiente  == 'PROD'
+
+- name: Start de serviços Protheus PRODUÇÃO
+  hosts: pxer03.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Iniciar serviços no pxer03
+      ansible.builtin.systemd:
+        name: appsrv_tmprod_protheus
+        state: started
+      when: ambiente  == 'PROD'

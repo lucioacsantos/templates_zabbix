@@ -1,0 +1,31 @@
+---
+- name: Stop Bitbucket — PRODUÇÃO (pxcd01)
+  hosts: pxcd01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Stop Bitbucket
+      ansible.builtin.command:
+        cmd: ./atlbitbucket stop
+        chdir: /opt/aplicacoes/bitbucket/scripts
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar PIDs Bitbucket (Tomcat)
+      ansible.builtin.shell: "jps -l | egrep 'org\\.apache\\.catalina\\.startup\\.Bootstrap' | awk '{print $1}'"
+      register: pids_bitbucket
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs Bitbucket remanescentes
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_bitbucket.stdout_lines }}"
+      when: pids_bitbucket.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

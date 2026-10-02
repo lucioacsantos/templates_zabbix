@@ -1,0 +1,27 @@
+---
+- name: Start OTDM
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Start OTDM NÃO PRODUÇÃO
+      block:
+        - name: Start OTDM Homologação
+          ansible.builtin.include_tasks:
+            file: playbook_start_otdm_naoprod_homol.yml
+          
+        - name: Start OTDM Projeto
+          ansible.builtin.include_tasks:
+            file: playbook_start_otdm_naoprod_projeto.yml
+      when: ambiente == 'NAO_PROD'
+
+    - name: Start OTDM PRODUÇÃO
+      block:
+        - name: Start OTDM Produção
+          ansible.builtin.include_tasks:
+            file: playbook_start_otdm_prod_producao.yml
+          
+        # - name: Start OTDM Piloto
+        #   ansible.builtin.include_tasks:
+        #     file: playbook_start_otdm_prod_piloto.yml
+      when: ambiente == 'PROD'

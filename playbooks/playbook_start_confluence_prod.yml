@@ -1,0 +1,15 @@
+---
+- name: Confluence — PRODUÇÃO (START)
+  hosts: pxwk04.energia.org.br
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Start Confluence (PROD)
+      ansible.builtin.command:
+        cmd: ./start-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false

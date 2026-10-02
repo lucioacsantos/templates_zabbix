@@ -1,0 +1,22 @@
+---
+- name: START SCDE (Coleta Ativa) - hxjs03
+  hosts: hxjs03.energia.org.br
+  remote_user: ansible
+  become: true
+  become_method: sudo
+  become_user: producao
+  become_flags: "-n"
+  gather_facts: false
+ 
+  vars:
+    app_dir: /opt/aplicacoes/nscl/hxjs03/homol_projeto/scde/coleta-ativa
+    start_script: NEW-Script_ColetaAtiva.sh
+ 
+  tasks:
+    - name: Start
+      ansible.builtin.command: "./{{ start_script }}"
+      args:
+        chdir: "{{ app_dir }}"
+      async: 600
+      poll: 5
+      failed_when: false

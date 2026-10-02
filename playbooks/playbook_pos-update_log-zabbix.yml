@@ -1,0 +1,28 @@
+# Playbook para verificar e corrigir as permissões do diretório de logs do Zabbix,
+# garantindo que o usuário 'usrzabbix' tenha as permissões adequadas para acessar e
+# gravar nos arquivos de log. O playbook é configurado para ser executado em todos os
+# hosts definidos no inventário, mas pode ser filtrado usando a variável 'servidores'
+# para especificar um grupo ou host específico. Após corrigir as permissões, o playbook
+# reinicia o serviço do Zabbix Agent para aplicar as mudanças.
+---
+- name: Checa permissões do Zabbix
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+
+  tasks:
+    - name: Verificar e corrigir permissões do diretório de logs do Zabbix
+      ansible.builtin.file:
+        state: directory
+        path: /var/log/zabbix
+        owner: usrzabbix
+        group: g_aplicacoes
+        mode: '0755'
+      
+    - name: Reiniciar serviços do zabbix agent
+      ansible.builtin.service:
+        name: zabbix-agent2
+        state: restarted

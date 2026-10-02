@@ -1,0 +1,16 @@
+---
+- name: Start Sonar — PRODUÇÃO (pxcd01)
+  hosts: pxcd01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start Sonar
+      ansible.builtin.command:
+        cmd: ./sonar.sh start
+        chdir: /opt/aplicacoes/sonar/bin/bin/linux-x86-64
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

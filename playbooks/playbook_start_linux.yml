@@ -1,0 +1,63 @@
+---
+- name: INICIALIZAÇÃO DE SERVIÇOS LINUX
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vars/playbook_comandos_start_linux.yml
+
+  tasks:
+    - name: Ambiente NÃO PRODUÇÃO
+      block:
+        - name: Iniciando serviços NÃO PRODUÇÃO
+          loop: "{{ comandos_naoprod }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_start_java.yml
+        
+        - name: Ambiente NÃO PRODUÇÃO GED
+          loop: "{{ comandos_naoprod }}"
+          ansible.builtin.shell: "{{ item.comando }}"
+          args:
+            chdir: "{{ item.diretorio }}"
+          when: item.nome == 'Start GED'
+        
+        - name: Verificandos serviços JAVA NÃO PRODUÇÃO
+          loop: "{{ comandos_naoprod }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_status_java.yml
+          when: item.nome != 'Start GED'
+      when: ambiente == 'NAO_PROD'
+
+    - name: Ambiente PRODUÇÃO
+      block:
+        - name: Iniciando serviços PRODUÇÃO
+          loop: "{{ comandos_prod }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_start_java.yml
+        
+        - name: Ambiente PRODUÇÃO GED
+          loop: "{{ comandos_prod }}"
+          ansible.builtin.shell: "{{ item.comando }}"
+          args:
+            chdir: "{{ item.diretorio }}"
+          when: item.nome == 'Start GED'
+
+        - name: Verificandos serviços JAVA PRODUÇÃO
+          loop: "{{ comandos_prod }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_status_java.yml
+          when: item.nome != 'Start GED'
+      when: ambiente == 'PROD'
+
+    - name: Ambiente LAB
+      block:
+        - name: Iniciando serviços LAB
+          loop: "{{ comandos_lab }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_start_java.yml
+
+        - name: Verificandos serviços JAVA LAB
+          loop: "{{ comandos_lab }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_status_java.yml
+      when: ambiente == 'LAB'

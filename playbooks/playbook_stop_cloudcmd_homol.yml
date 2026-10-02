@@ -1,0 +1,33 @@
+---
+- name: Stop CloudCMD — Homologação
+  hosts: hxjs03.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Executar stop do CloudCMD
+      ansible.builtin.command:
+        cmd: ./recicla_cloudcmd stop
+        chdir: /opt/aplicacoes/cloudcmd/scripts
+      become_user: usrcloudcmd
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar PIDs CloudCMD (Node.js)
+      ansible.builtin.shell: "pgrep -u usrcloudcmd -f 'node .*cloudcmd' || true"
+      register: cloudcmd_pids
+      async: 600
+      poll: 5
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs CloudCMD
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ cloudcmd_pids.stdout_lines }}"
+      when: cloudcmd_pids.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

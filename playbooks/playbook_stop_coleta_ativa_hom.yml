@@ -1,0 +1,24 @@
+---
+- name: STOP SCDE (Coleta Ativa) - FORCE - hxjs03
+  hosts: hxjs03.energia.org.br
+  become: true
+  become_user: producao
+  gather_facts: false
+ 
+  vars:
+    java_main_match: "br\\.org\\.energia\\.scde\\.collect\\.active\\.Collect"
+    wait_seconds: 10
+ 
+  tasks:
+    - name: TERM e FORCE (se necessário)
+      ansible.builtin.shell: |
+        pids="$(jps -l | awk '/{{ java_main_match }}/ {print $1}')"
+        [ -z "$pids" ] && exit 0
+        kill -TERM $pids || true
+        sleep {{ wait_seconds }}
+        pids2="$(jps -l | awk '/{{ java_main_match }}/ {print $1}')"
+        [ -z "$pids2" ] && exit 0
+        kill -KILL $pids2 || true
+      args:
+        executable: /bin/bash
+      failed_when: false

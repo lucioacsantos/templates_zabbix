@@ -1,0 +1,33 @@
+# Playbook para verificar a versão do kernel em hosts definidos no inventário.
+# O playbook é configurado para ser executado em todos os hosts, mas pode ser filtrado usando
+# a variável 'servidores' para especificar um grupo ou host específico. O playbook coleta informações
+# limitadas dos hosts, executa o comando 'uptime' para verificar o tempo de atividade e exibe a versão
+# do kernel utilizando a variável 'ansible_kernel' coletada durante a fase de setup.
+---
+- name: Verificar Versão do Kernel
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+
+  tasks:
+    - name: Setup (gather limited facts)
+      ansible.builtin.setup:
+        gather_subset:
+          - '!all,!min'
+          - 'network'
+          - 'date_time'
+
+    - name: Executar o comando uptime
+      ansible.builtin.command: uptime
+      register: resultado_uptime
+
+    - name: Exibir o resultado do uptime
+      ansible.builtin.debug:
+        msg: "Uptime: {{ resultado_uptime.stdout }}"
+    
+    - name: Exibe versão do kernel
+      ansible.builtin.debug:
+        msg: "Versão do kernel: {{ ansible_kernel }}"

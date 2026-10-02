@@ -1,0 +1,49 @@
+---
+- name: Stop de serviços NÃO PRODUÇÃO
+  hosts: hxjs03.energia.org.br
+  become: true
+  gather_facts: false
+
+  vars:
+    comandos:      
+      - nome: Stop CloudCMD
+        diretorio: /opt/aplicacoes/cloudcmd/scripts
+        comando: recicla_cloudcmd stop
+        user: usrcloudcmd
+        server: hxjs03
+        servico_jps: naojava
+      
+      - nome: Stop SimSID
+        diretorio: /opt/aplicacoes/simsid/scripts
+        comando: simsid-stop.sh
+        user: usrsimsid
+        server: hxjs03
+        servico_jps: simsid-web-6.2.6-SNAPSHOT.jar
+      
+      - nome: Stop Coleta Ativa
+        diretorio: /opt/aplicacoes/nscl/hxjs03/homol_projeto/scde/coleta-ativa/
+        comando: coletaativa_stop.sh
+        user: producao
+        server: hxjs03
+        servico_jps: Collect
+      
+      - nome: Stop Agent 4445
+        diretorio: /opt/aplicacoes/js7_agent/bin
+        comando: agent_4445.sh stop
+        user: producao
+        server: hxjs03
+        servico_jps: AgentMain
+
+      - nome: Stop Agent 44445
+        diretorio: /opt/aplicacoes/js7_homol_agent/bin
+        comando: agent_44445.sh stop
+        user: producao
+        server: hxjs03
+        servico_jps: AgentMain
+
+  tasks:
+    - name: Parar serviços
+      loop: "{{ comandos }}"
+      ansible.builtin.include_tasks:
+            file: tasks/playbook_task_stop_java.yml
+      when: ambiente  == 'NAO_PROD'

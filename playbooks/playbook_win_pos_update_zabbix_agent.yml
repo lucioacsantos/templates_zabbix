@@ -1,0 +1,40 @@
+---
+- name: ATUALIZAÇÃO DO ZABBIX AGENT2
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vars/playbook_vars_zabbix.yml
+    - vars/playbook_vars_bitbucket.yml
+
+  vars:
+    versao_agente_path: "zabbix_agent2.cfg"
+    target_file: "vars/playbook_vars_zabbix.yml"
+    commit_message: "Atualização do arquivo playbook_vars_zabbix.yml **atualizar: false**"
+    repo_path: "patch_management"
+
+  tasks:
+    - name: CONFIGURAÇÃO PÓS-UPDATE
+      block:
+        - name: Obter zabbix_agent2.cfg
+          ansible.builtin.uri:
+            url: https://nexus.energia.org.br/repository/zabbix/zabbix_agent2/zabbix_agent2.cfg
+            method: GET
+            return_content: true
+            validate_certs: false
+          register: zabbix_config_response
+
+        - name: Marcar atualizar como true se versão for maior
+          ansible.builtin.replace:
+            path: "{{ versao_agente_path }}"
+            regexp: '^atualizar:.*$'
+            replace: "atualizar: true"
+          when: (zabbix_latest_minor | int) > (versao_menor | int)
+
+        - name: Marcar atualizar como false se versão for igual ou menor
+          ansible.builtin.replace:
+            path: "{{ versao_agente_path }}"
+            regexp: '^atualizar:.*$'
+            replace: "atualizar: false"
+          when: (zabbix_latest_minor | int) <= (versao_menor | int)
+      when: "'Vcenter Windows Produção' in ansible_inventory_sources[0]"

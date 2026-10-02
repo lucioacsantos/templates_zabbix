@@ -1,0 +1,34 @@
+---
+# Vars via Survey:
+#   acao: START | STOP
+
+- name: START/STOP TENABLE COLETOR — PRODUÇÃO (PODMAN)
+  hosts: pxpt01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Parar TENABLE COLETOR
+      ansible.builtin.command: podman stop nessus-ccee
+      async: 600
+      poll: 5
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Iniciar TENABLE COLETOR
+      ansible.builtin.command: podman start nessus-ccee
+      async: 600
+      poll: 5
+      failed_when: false
+      when: acao == 'START'
+
+    # ===== Verificação Final =====
+    - name: Verificar status TENABLE COLETOR
+      ansible.builtin.command: podman ps -a
+      register: tenable_status
+      changed_when: false
+      failed_when: false
+
+    - name: Mostrar status TENABLE COLETOR
+      ansible.builtin.debug:
+        var: tenable_status.stdout_lines

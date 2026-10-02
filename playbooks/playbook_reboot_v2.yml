@@ -1,0 +1,28 @@
+# Playbook para reboot hosts, utilizando o módulo reboot do Ansible. 
+# A partir da lista de hosts prioritários, o playbook irá reiniciar 
+# os hosts conforme a resposta ao survey em caso de reiniciar priorit[arios
+# ou não, a partir do qual serão selecionados os hosts conforme a lista.
+# A variável servidores será definida no survey, e a variável prioridade também, 
+# para definir se serão reiniciados os hosts prioritários ou não bem como quais 
+# hosts lab*.energia.org.br, hx*.energia.org.br, px*.energia.org.br, etc.
+---
+- name: Reboot Hosts / Verifica Uptime e Kernel
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    prioridade: "{{ prioridade | default('NÃO') }}"
+
+  vars_files:
+    - vars/playbook_vars_inventarios.yml
+
+  tasks:    
+    - name: Reboot dos Hosts Não Prioritários
+      ansible.builtin.reboot:
+      ignore_errors: yes
+      when: prioridade == 'NÃO' and inventory_hostname not in otdm_homol + otdm_producao + prioritarios_homol + prioritarios_producao
+
+    - name: Reboot dos Hosts Prioritários
+      ansible.builtin.reboot:
+      ignore_errors: yes
+      when: prioridade == 'SIM' and inventory_hostname in prioritarios_homol + prioritarios_producao

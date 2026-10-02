@@ -1,0 +1,22 @@
+---
+- name: Aprovar Atualizações no WSUS
+  hosts: "{{ servidor }}"
+  gather_facts: false
+
+  vars:
+    wsus_server_name: "{{ wsus_server }}"
+    target_group_name: "{{ grupo }}"
+    update_classification: "{{ classificacao }}"
+
+  tasks:
+    - name: Consultando atualizações disponíveis para aprovação
+      ansible.windows.win_shell: Get-WsusUpdate -Classification "{{ update_classification }}" -Approval AnyExceptDeclined -Status FailedOrNeeded
+      register: wsus_output
+
+    - name: Exibindo atualizações disponíveis para atualização
+      debug:
+        var: wsus_output.stdout_lines
+
+    - name: Aprovando atualizações WSUS
+      ansible.windows.win_shell: Get-WsusUpdate -Classification "{{ update_classification }}" -Approval AnyExceptDeclined -Status FailedOrNeeded | Approve-WsusUpdate -Action Install -TargetGroupName "{{ item }}"
+      loop: "{{ target_group_name }}"

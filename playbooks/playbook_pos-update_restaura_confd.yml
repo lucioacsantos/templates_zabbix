@@ -1,0 +1,37 @@
+#   Este playbook é responsável pela restauração das configurações do
+#   ConfD (Configuration Database) após a execução de atualizações do
+#   sistema. Garante que as definições de configuração sejam restauradas
+#   para o estado desejado.
+---
+- name: Gerenciamento do arquivo ssl.conf e start nos servidores Apache
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+    
+  tasks:
+    - name: Bloco de restauração
+      block:
+        - name: Stop do serviço apache
+          ansible.builtin.service:
+            name: httpd
+            state: stopped
+        
+        - name: Excluir diretorio conf.d
+          ansible.builtin.file:
+            path: /etc/httpd/conf.d
+            state: absent
+
+        - name: Restaura backup da pasta conf.d
+          ansible.builtin.copy:
+            src: /etc/httpd/conf.d.bkp/conf.d
+            dest: /etc/httpd
+            remote_src: true
+            
+        - name: Start do serviço Apache
+          ansible.builtin.service:
+            name: httpd
+            state: started
+      when: "'xap' in inventory_hostname"

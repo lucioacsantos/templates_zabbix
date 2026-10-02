@@ -1,0 +1,46 @@
+---
+- name: OTDM PRODUÇÃO/PILOTO
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    otdm_lab: [hxms05.energia.org.br,hxms06.energia.org.br,hxms07.energia.org.br,hxsc07.energia.org.br,
+        hxsc08.energia.org.br,hxsc09.energia.org.br,hxsc10.energia.org.br,hxsc11.energia.org.br,
+        hxsc12.energia.org.br]
+  
+  vars_files:
+    - vars/playbook_comandos_start_otdm_prod_piloto.yml
+    - vars/playbook_comandos_start_otdm_naoprod_lab.yml
+
+  tasks:
+    - name: INICIALIZAÇÃO DE SERVIÇOS
+      block:
+        - name: Configurações pré-start hadoop
+          loop: "{{ comandos_piloto }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_hadoop_del_format.yml
+          when: item.nome == 'Start hadoop'
+          
+        - name: Iniciando serviços PILOTO
+          loop: "{{ comandos_piloto }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_start_java.yml
+            
+        - name: Verificandos serviços JAVA PILOTO
+          loop: "{{ comandos_piloto }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_status_java.yml
+      when: ambiente == 'PILOTO'
+
+    - name: Ambiente LAB
+      block:
+        - name: Iniciando serviços LAB
+          loop: "{{ comandos_lab }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_start_java.yml
+
+        - name: Verificandos serviços JAVA LAB
+          loop: "{{ comandos_lab }}"
+          ansible.builtin.include_tasks:
+            file: tasks/playbook_task_status_java.yml
+      when: ambiente == 'LAB'

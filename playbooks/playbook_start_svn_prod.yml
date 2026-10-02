@@ -1,0 +1,16 @@
+---
+- name: SVN — PRODUÇÃO (START)
+  hosts: pxbs02.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start SVN (PROD)
+      ansible.builtin.command:
+        cmd: ./startup.sh
+        chdir: /opt/aplicacoes/artifactory/tomcat/bin/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

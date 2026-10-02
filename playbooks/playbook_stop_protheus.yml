@@ -1,0 +1,106 @@
+---
+- name: Stop de serviços Protheus NÃO PRODUÇÃO
+  hosts: dxer01.energia.org.br, hxer03.energia.org.br
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Parar serviços no dxer01
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - appsrv_dev_rh_protheus.service
+        - appsrv_dev_fin_protheus.service
+        - appsrv_dev_lab_protheus.service
+      when: inventory_hostname == "dxer01.energia.org.br" and ambiente  == 'NAO_PROD'
+
+    - name: Parar serviços no hxer03
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - appsrv_tmhom_protheus.service
+        - appsrv_tmtin_protheus.service
+        - appsrv_tmproj_protheus.service
+      when: inventory_hostname == "hxer03.energia.org.br" and ambiente  == 'NAO_PROD'
+
+- name: Stop de serviços Protheus - DBAccess NÃO PRODUÇÃO
+  hosts: dxer02.energia.org.br, hxer04.energia.org.br
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Parar serviços DBAccess no dxer02 
+      ansible.builtin.systemd:
+        name: totvsdbaccess
+        state: stopped
+      when: ambiente  == 'NAO_PROD'
+    
+    - name: Parar serviços DBAccess_tss no dxer02
+      ansible.builtin.systemd:
+        name: totvsdbaccess_tss
+        state: stopped
+      when: ambiente  == 'NAO_PROD' and inventory_hostname == 'hxer04.energia.org.br'
+
+- name: Stop de serviços Protheus - License Server NÃO PRODUÇÃO
+  hosts: dxer03.energia.org.br
+  become: true
+  gather_facts: false
+    
+  tasks:
+    - name: Parar serviço no dxer03
+      ansible.builtin.systemd:
+        name: licenseserver
+        state: stopped
+      when: ambiente  == 'NAO_PROD'
+
+- name: Stop de serviços Protheus PRODUÇÃO
+  hosts: pxer03.energia.org.br
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Parar serviços no pxer03
+      ansible.builtin.systemd:
+        name: appsrv_tmprod_protheus
+        state: stopped
+      when: ambiente  == 'PROD'
+
+- name: Stop de serviços Protheus - DBAccess PRODUÇÃO
+  hosts: pxer06.energia.org.br
+  become: true
+  gather_facts: false
+  
+  tasks:
+    - name: Parar serviços no pxer06
+      ansible.builtin.systemd:
+        name: totvsdbaccess
+        state: stopped
+      when: ambiente  == 'PROD'
+
+    - name: Parar serviços no pxer06
+      ansible.builtin.systemd:
+        name: totvsdbaccess_tss
+        state: stopped
+      when: ambiente  == 'PROD'
+
+    # - name: Parar serviço no pxer06 (novo DBAccess e TSS)
+    #   ansible.builtin.shell: "./totvsdbaccess_tss stop"
+    #   args:
+    #     chdir: /opt/aplicacoes/totvs/scripts/
+    #   ignore_errors: yes
+    #   when: ambiente  == 'PROD'
+
+
+- name: Stop de serviços Protheus - License Server PRODUÇÃO
+  hosts: pxer05.energia.org.br
+  become: true
+  gather_facts: false
+    
+  tasks:
+    - name: Parar serviço no pxer05
+      ansible.builtin.systemd:
+        name: licenseserver
+        state: stopped
+      when: ambiente  == 'PROD'

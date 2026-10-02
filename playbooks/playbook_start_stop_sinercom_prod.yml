@@ -1,0 +1,92 @@
+---
+# Vars via Survey:
+#   acao: START | STOP
+
+- name: Sinercom — PRODUÇÃO (START/STOP)
+  hosts: pxas02.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    # ===== START =====
+    - name: Start Sinercom (Components)
+      ansible.builtin.command:
+        cmd: ./Start_Run_Components
+        chdir: /opt/aplicacoes/sinercom/tomcat/pxas02/scripts/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    - name: Start Sinercom (WEB)
+      ansible.builtin.command:
+        cmd: ./startWEB
+        chdir: /opt/aplicacoes/sinercom/tomcat/pxas02/scripts/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    # ===== STOP =====
+    - name: Stop Sinercom (Components)
+      ansible.builtin.command:
+        cmd: ./Stop_Run_Components
+        chdir: /opt/aplicacoes/sinercom/tomcat/pxas02/scripts/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Stop Sinercom (WEB)
+      ansible.builtin.command:
+        cmd: ./stopWEB
+        chdir: /opt/aplicacoes/sinercom/tomcat/pxas02/scripts/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    # ===== Tratamento STOP (Java) =====
+    - name: Verificar PIDs Sinercom (Components)
+      ansible.builtin.shell: "jps -lv | egrep 'StartAllComponents' | awk '{print $1}' || true"
+      register: pids_sinercom_components
+      async: 600
+      poll: 5
+      changed_when: false
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Matar PIDs Sinercom (Components)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_sinercom_components.stdout_lines }}"
+      when: acao == 'STOP' and (pids_sinercom_components.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar PIDs Sinercom (WEB - Tomcat)
+      ansible.builtin.shell: "jps -lv | egrep 'org\\.apache\\.catalina\\.startup\\.Bootstrap' | awk '{print $1}' || true"
+      register: pids_sinercom_web
+      async: 600
+      poll: 5
+      changed_when: false
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Matar PIDs Sinercom (WEB)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_sinercom_web.stdout_lines }}"
+      when: acao == 'STOP' and (pids_sinercom_web.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

@@ -1,0 +1,22 @@
+---
+- name: Stop HomGED — Homologação (hxdk01)
+  hosts: hxdk01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Stop GED (HomGED)
+      ansible.builtin.command:
+        cmd: docker-compose down
+        chdir: /opt/project/docker-compose-alfresco
+      async: 600
+      poll: 5
+      
+
+    - name: Stop Monitoramento (HomGED)
+      ansible.builtin.command:
+        cmd: docker-compose down
+        chdir: /opt/project/monitoramento
+      async: 600
+      poll: 5
+      

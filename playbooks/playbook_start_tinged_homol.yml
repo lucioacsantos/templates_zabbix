@@ -1,0 +1,20 @@
+---
+- name: Start TinGED — Homologação (hxdk02)
+  hosts: hxdk02.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start GED (TinGED)
+      ansible.builtin.command:
+        cmd: docker-compose up -d
+        chdir: /opt/project/docker-compose-alfresco
+      async: 600
+      poll: 5
+
+    - name: Start Monitoramento (TinGED)
+      ansible.builtin.command:
+        cmd: docker-compose up -d
+        chdir: /opt/project/monitoramento
+      async: 600
+      poll: 5

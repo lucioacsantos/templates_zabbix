@@ -1,0 +1,13 @@
+---
+- name: Executa mount -a em todos os hosts
+  hosts: "{{ servidores }}"
+  become: yes
+  tasks:
+    - name: Monta todos os sistemas de arquivos definidos em /etc/fstab
+      ansible.builtin.command: mount -a
+      register: mount_result
+      changed_when: false
+
+    - name: Apresentar o resultado do comando mount -a
+      ansible.builtin.debug:
+        var: mount_result.stdout

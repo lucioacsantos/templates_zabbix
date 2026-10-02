@@ -1,0 +1,32 @@
+---
+# Executa somente STOP
+
+- name: Confluence — PRODUÇÃO (STOP)
+  hosts: pxwk04.energia.org.br
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Stop Confluence (PROD)
+      ansible.builtin.command:
+        cmd: ./stop-confluence.sh
+        chdir: /opt/aplicacoes/Confluence/bin/
+      become_user: usrconfluence
+      changed_when: true
+      failed_when: false
+      async: 600     
+      poll: 5
+
+    - name: Verificar PIDs Confluence (zumbis)
+      ansible.builtin.shell: "jps -l | egrep 'org\\.apache\\.catalina\\.startup\\.Bootstrap|synchrony\\.core' | awk '{print $1}'"
+      register: pids_conf
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs Confluence remanescentes
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_conf.stdout_lines }}"
+      when: pids_conf.stdout_lines | length > 0
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false

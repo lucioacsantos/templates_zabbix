@@ -1,0 +1,32 @@
+---
+- name: Checa repositórios fora do padrão
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+    
+  tasks:
+    - name: Realiza limpeza dos repositórios fora do padrão
+      block:
+        - name: Setup (gather limited facts)
+          ansible.builtin.setup:
+            gather_subset:
+              - '!all,!min'
+              - 'network'
+              - 'date_time'
+              
+        - name: Localiza arquivos .repo (exceto redhat.repo)
+          ansible.builtin.find:
+            paths: /etc/yum.repos.d/
+            excludes: redhat.repo
+            patterns: '*.repo'
+            file_type: file
+          register: repo_files
+
+        - name: Renomeia arquivos .repo com timestamp
+          ansible.builtin.command:
+            cmd: "mv {{ item.path }} {{ item.path }}.disable_{{ ansible_date_time.date }}_{{ ansible_date_time.time | replace(':', '-') }}"
+          loop: "{{ repo_files.files }}"
+          when: repo_files.matched | int > 0
+      when: "'pxzb' not in inventory_hostname or 'hxzb' not in inventory_hostname"

@@ -1,0 +1,43 @@
+---
+- name: STOP DE SERVIÇOS
+  hosts: lab-aut08.energia.org.br,lab-aut09.energia.org.br,lab-aut11.energia.org.br
+  gather_facts: no
+
+  vars:
+    software: openjdk-devel
+
+  vars_files:
+    - vars/playbook_comandos_stop_lab.yml
+
+  tasks:
+    - name: Selecionando comandos
+      ansible.builtin.set_fact:
+        comandos_filtrados: "{{ comandos_lab | selectattr('server', 'equalto', inventory_hostname) | list }}"
+
+    - name: Verificando instalação do openjdk-devel
+      loop: "{{ comandos_filtrados }}"
+      ansible.builtin.include_tasks:
+            file: tasks/playbook_task_versao_rpm.yml
+
+    - name: Verificar/Instalar o pacote openjdk-devel {{ item.server }}
+      ansible.builtin.yum:
+        name: java-1.8.0-openjdk-devel
+        state: present
+      become: true
+      delegate_to: "{{ item.server }}"
+      failed_when: false
+      when: versao_rpm is not defined
+
+    - name: Executando comandos
+      ansible.builtin.shell: "./{{ item.comando }}"
+      args:
+        chdir: "{{ item.diretorio }}"
+      become: "{{ item.user != 'root' }}"
+      become_user: "{{ item.user if item.user != 'root' else omit }}"
+      loop: "{{ comandos_filtrados }}"
+      failed_when: false
+
+    - name: Preparando verificações de status
+      loop: "{{ comandos_filtrados }}"
+      ansible.builtin.include_tasks:
+            file: tasks/playbook_task_status_java.yml

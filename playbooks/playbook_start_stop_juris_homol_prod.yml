@@ -1,0 +1,98 @@
+---
+# Vars via Survey:
+#   ambiente: NAO_PROD | PROD
+#   acao: START | STOP
+
+############################################
+# HOMOLOGAÇÃO — hxsb01
+############################################
+- name: Juris — HOMOLOGAÇÃO (hxsb01)
+  hosts: hxsb01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start Juris (HOM)
+      ansible.builtin.command:
+        cmd: ./start.sh
+        chdir: /opt/aplicacoes/juris/homjuris01/bin/
+      become_user: usrjuris
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: ambiente == 'NAO_PROD' and acao == 'START'
+
+    - name: Stop Juris (HOM)
+      ansible.builtin.command:
+        cmd: ./stop.sh
+        chdir: /opt/aplicacoes/juris/homjuris01/bin/
+      become_user: usrjuris
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: ambiente == 'NAO_PROD' and acao == 'STOP'
+
+    - name: Verificar PIDs Juris (zumbis HOM)
+      ansible.builtin.shell: "jps -l | egrep 'juris-web-3\\.9\\.13\\.jar' | awk '{print $1}'"
+      register: juris_pids_hom
+      changed_when: false
+      failed_when: false
+      when: ambiente == 'NAO_PROD' and acao == 'STOP'
+
+    - name: Matar PIDs Juris (HOM)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ juris_pids_hom.stdout_lines }}"
+      when: ambiente == 'NAO_PROD' and acao == 'STOP' and (juris_pids_hom.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+############################################
+# PRODUÇÃO — pxsb01
+############################################
+- name: Juris — PRODUÇÃO (pxsb01)
+  hosts: pxsb01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start Juris (PROD)
+      ansible.builtin.command:
+        cmd: ./start.sh
+        chdir: /opt/aplicacoes/juris/bin/
+      become_user: usrjuris
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: ambiente == 'PROD' and acao == 'START'
+
+    - name: Stop Juris (PROD)
+      ansible.builtin.command:
+        cmd: ./stop.sh
+        chdir: /opt/aplicacoes/juris/bin/
+      become_user: usrjuris
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: ambiente == 'PROD' and acao == 'STOP'
+
+    - name: Verificar PIDs Juris (zumbis PROD)
+      ansible.builtin.shell: "jps -l | egrep 'juris-web-3\\.9\\.13\\.jar' | awk '{print $1}'"
+      register: juris_pids_prod
+      changed_when: false
+      failed_when: false
+      when: ambiente == 'PROD' and acao == 'STOP'
+
+    - name: Matar PIDs Juris (PROD)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ juris_pids_prod.stdout_lines }}"
+      when: ambiente == 'PROD' and acao == 'STOP' and (juris_pids_prod.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

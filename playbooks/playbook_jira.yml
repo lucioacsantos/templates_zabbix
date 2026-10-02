@@ -1,0 +1,93 @@
+---
+- name: Playbook de Interação com Central de Serviços CCEE (Jira)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Constantes
+    server: https://centraldeservicosccee.atlassian.net/
+    # Variáveis com dados recuperados da demanda
+    tipo_demanda: "{{ issue.meta.fields.issuetype.name }}"
+    responsavel: "{{ issue.meta.fields.reporter.displayName }}"
+    descricao: "{{ issue.meta.fields.description }}"
+    demanda_superior: "{{ issue.meta.fields.parent.key }}"
+    situacao: "{{ issue.meta.fields.status.name }}"
+    registro_trabalho: "{{ issue.meta.fields.worklog.worklogs }}"
+    # Variáveis para inserir dados em nova demanda
+  
+  tasks:
+    - name: Recupera dados de uma demanda
+      community.general.jira:
+        uri: "{{ server }}"
+        username: "{{ user }}"
+        password: "{{ pass }}"
+        project: "{{ projeto }}"
+        operation: fetch
+        issue: "{{ demanda }}" #GSIN-17207
+      register: issue
+      when: acao == 'Existente'
+
+    - name: Dados da demanda
+      debug:
+        msg:
+          - "Tipo da demanda:   {{ tipo_demanda }}"
+          - "Responsável:       {{ responsavel }}"
+          - "Descrição:         {{ descricao }}"
+          - "Demanda superior:  {{ demanda_superior }}"
+          - "Situação:          {{ situacao }}"
+      when: acao == 'Existente'
+
+    - name: Registrar nova demanda
+      community.general.jira:
+        uri: '{{ server }}'
+        username: '{{ user }}'
+        password: '{{ pass }}'
+        project: '{{ pojeto }}'
+        operation: create
+        summary: Example Issue
+        description: Created using Ansible
+        issuetype: Task
+      args:
+        fields:
+            customfield_13225: "test"
+            customfield_12931: {"value": "Test"}
+      register: issue
+      when: acao == 'Nova'
+
+    - name: Comment on issue
+      community.general.jira:
+        uri: '{{ server }}'
+        username: '{{ user }}'
+        password: '{{ pass }}'
+        issue: '{{ issue.meta.key }}'
+        operation: comment
+        comment: A comment added by Ansible
+      when: acao == 'Nova'
+
+    - name: Comment on issue with restricted visibility
+      community.general.jira:
+        uri: '{{ server }}'
+        username: '{{ user }}'
+        password: '{{ pass }}'
+        issue: '{{ issue.meta.key }}'
+        operation: comment
+        comment: A comment added by Ansible
+        comment_visibility:
+          type: role
+          value: Developers
+      when: acao == 'Nova'
+
+    - name: Comment on issue with property to mark it internal
+      community.general.jira:
+        uri: '{{ server }}'
+        username: '{{ user }}'
+        password: '{{ pass }}'
+        issue: '{{ issue.meta.key }}'
+        operation: comment
+        comment: A comment added by Ansible
+        fields:
+          properties:
+            - key: 'sd.public.comment'
+              value:
+                internal: true
+      when: acao == 'Nova'

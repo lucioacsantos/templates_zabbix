@@ -1,0 +1,23 @@
+# Playbook para reboot hosts prioritários, utilizando o módulo reboot do Ansible.
+# O playbook é configurado para ser executado em todos os hosts definidos no inventário,
+# mas a tarefa de reboot será aplicada apenas aos hosts que pertencem aos grupos 'prioritarios_homol' ou 'prioritarios_producao',
+# conforme definido nas variáveis de inventário. O playbook ignora erros durante o processo de reboot para garantir que a execução
+# continue mesmo se algum host não puder ser reiniciado com sucesso.
+---
+- name: Reboot Hosts / Verifica Uptime e Kernel
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+
+  vars_files:
+    # Arquivo de variáveis para inventários
+    - vars/playbook_vars_inventarios.yml
+
+  tasks:
+    - name: Reboot dos Hosts Prioritários
+      ansible.builtin.reboot:
+      ignore_errors: yes
+      when: inventory_hostname in prioritarios_homol or inventory_hostname in prioritarios_producao

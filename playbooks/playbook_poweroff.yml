@@ -1,0 +1,9 @@
+---
+- name: Reboot Hosts / Verifica Uptime e Kernel
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  vars:
+    servidores: lab-aut*.energia.org.br
+  tasks:
+    - name: Shutdown dos hosts
+      community.general.shutdown:

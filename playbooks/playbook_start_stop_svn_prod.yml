@@ -1,0 +1,48 @@
+---
+# Vars via Survey:
+#   acao: START | STOP
+
+- name: SVN — PRODUÇÃO (START/STOP)
+  hosts: pxbs02.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Start SVN (PROD)
+      ansible.builtin.command:
+        cmd: ./startup.sh
+        chdir: /opt/aplicacoes/artifactory/tomcat/bin/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    - name: Stop SVN (PROD)
+      ansible.builtin.command:
+        cmd: ./shutdown.sh
+        chdir: /opt/aplicacoes/artifactory/tomcat/bin/
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Verificar PIDs SVN (Bootstrap)
+      ansible.builtin.shell: "jps -l | egrep 'Bootstrap' | awk '{print $1}'"
+      register: pids_svn
+      changed_when: false
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Matar PIDs SVN remanescentes
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_svn.stdout_lines }}"
+      when: acao == 'STOP' and (pids_svn.stdout_lines | length > 0)
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      

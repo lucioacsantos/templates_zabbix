@@ -1,0 +1,15 @@
+---
+- name: Executar comando em ativos Windows
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+  tasks:
+    # Executa reboot nos servidores Windows
+    - name: Reboot nos servidores Windows
+      ansible.windows.win_reboot:
+        reboot_timeout: 600
+        pre_reboot_delay: 10
+        post_reboot_delay: 30
+        test_command: whoami

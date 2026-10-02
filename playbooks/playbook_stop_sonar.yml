@@ -1,0 +1,31 @@
+---
+- name: Stop Sonar — PRODUÇÃO (pxcd01)
+  hosts: pxcd01.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Stop Sonar
+      ansible.builtin.command:
+        cmd: ./sonar.sh stop
+        chdir: /opt/aplicacoes/sonar/bin/bin/linux-x86-64
+      become_user: root
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar PIDs Sonar (Java)
+      ansible.builtin.shell: "jps -l | egrep 'org\\.sonar\\.application\\.App' | awk '{print $1}'"
+      register: pids_sonar
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs Sonar remanescentes
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_sonar.stdout_lines }}"
+      when: pids_sonar.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

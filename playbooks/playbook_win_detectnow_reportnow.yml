@@ -1,0 +1,23 @@
+---
+- name: Playbook para gerenciar atualizações do Windows
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+  tasks:
+    - name: Garantir que o serviço Windows Update esteja habilitado
+      ansible.windows.win_service:
+        name: wuauserv
+        start_mode: auto
+
+    - name: Garantir que o serviço Windows Update esteja em execução
+      ansible.windows.win_service:
+        name: wuauserv
+        state: started
+    
+    - name: Detectar atualizações do Windows
+      ansible.windows.win_command: "wuauclt /detectnow"
+
+    - name: Reportar status das atualizações
+      ansible.windows.win_command: "wuauclt /reportnow"

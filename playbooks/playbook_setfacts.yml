@@ -1,0 +1,38 @@
+---
+- name: Configurando set fact nos servidores
+  hosts: "{{ servidores }}"
+  gather_facts: false
+  tasks:
+  
+    - name: Remover arquivo de fato existente (limpeza)
+      ansible.builtin.file:
+        path: /etc/ansible/facts.d/arquivo.fact
+        state: absent
+
+    - name: Configurar sessão [info] se não existir
+      ansible.builtin.lineinfile:
+        path: /etc/ansible/facts.d/arquivo.fact
+        line: '[info]'
+        create: yes
+        insertafter: EOF
+        regexp: '^\[info\]$'
+
+    - name: Configurando tipo no arquivo de fato
+      ansible.builtin.lineinfile:
+        path: /etc/ansible/facts.d/arquivo.fact
+        line: 'tipo={{ var_tipo }}'
+        create: yes
+        insertafter: '^\[info\]$'
+        regexp: '^tipo='
+      vars:
+        var_tipo: "{{ tipo | default('prod') }}"
+
+    - name: Configurando prioridade no arquivo de fato
+      ansible.builtin.lineinfile:
+        path: /etc/ansible/facts.d/arquivo.fact
+        line: 'prioridade={{ var_prioridade }}'
+        create: yes
+        insertafter: '^\[info\]$'
+        regexp: '^prioridade='
+      vars:
+        var_prioridade: "{{ prioridade | default('prod') }}"

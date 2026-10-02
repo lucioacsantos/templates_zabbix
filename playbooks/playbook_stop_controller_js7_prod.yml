@@ -1,0 +1,36 @@
+---
+- name: Stop Controller JS7 — PRODUÇÃO (pxwl02)
+  hosts: pxwl02.energia.org.br
+  become: true
+  become_flags: '-i'
+  gather_facts: false
+
+  tasks:
+    - name: Stop Controller (PROD)
+      ansible.builtin.command:
+        cmd: ./controller.sh stop
+        chdir: /opt/aplicacoes/js7/controller/bin/
+      become_user: usrjobscheduler
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Verificar PIDs Controller (PROD)
+      ansible.builtin.shell: "pgrep -u usrjobscheduler -f 'js7.*controller' || true"
+      register: ctrl_pids_prod
+      changed_when: false
+      failed_when: false
+
+    - name: Matar PIDs Controller remanescentes (PROD)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ ctrl_pids_prod.stdout_lines }}"
+      when: ctrl_pids_prod.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    - name: Validar que o Controller parou
+      ansible.builtin.shell: "! pgrep -u usrjobscheduler -f 'js7.*controller' >/dev/null 2>&1"
+      changed_when: false

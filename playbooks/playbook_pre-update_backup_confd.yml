@@ -1,0 +1,35 @@
+# Playbook para realizar backup da pasta conf.d antes de atualizações, garantindo que
+# as configurações atuais sejam preservadas. O playbook é configurado para ser executado
+# em todos os hosts definidos no inventário, mas a tarefa de backup será aplicada apenas
+# aos hosts que pertencem ao grupo 'xap', conforme definido nas variáveis de inventário.
+# O playbook exclui qualquer backup anterior antes de criar um novo backup da pasta conf.d,
+# garantindo que apenas a versão mais recente seja mantida.
+---
+- name: Realizar cópia da pasta conf.d
+  hosts: "{{ servidores }}"
+  gather_facts: false
+
+  vars:
+    # Valor padrão caso 'servidores' não seja fornecido
+    servidores: all
+  
+  tasks:
+    - name: Setup (gather limited facts)
+      ansible.builtin.setup:
+        gather_subset:
+          - '!all,!min'
+          - 'network'
+          
+    - name: Bloco de backup
+      block:
+        - name: Excluir diretorio conf.d.bkp
+          ansible.builtin.file:
+            path: /etc/httpd/conf.d.bkp
+            state: absent
+
+        - name: Backup da pasta conf.d
+          ansible.builtin.copy:
+            src: /etc/httpd/conf.d
+            dest: /etc/httpd/conf.d.bkp
+            remote_src: true    
+      when: "'xap' in inventory_hostname"

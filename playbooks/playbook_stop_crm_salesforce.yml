@@ -1,0 +1,14 @@
+---
+- name: STOP CRM-SalesForce
+  hosts: pxca02.energia.org.br
+  gather_facts: false
+
+  tasks:
+    - name: Stop CRM-SalesForce (PROD)
+      ansible.builtin.command:
+        cmd: ./STOP_CRM
+        chdir: /opt/aplicacoes/scripts/crm
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false

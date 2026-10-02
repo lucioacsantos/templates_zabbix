@@ -1,0 +1,90 @@
+---
+- name: START/STOP JS7 — PRODUÇÃO (pxwl02)
+  hosts: pxwl02.energia.org.br
+  become: true
+  gather_facts: false
+  become_flags: '-i'
+
+  tasks:
+    # ===== Stop Jetty =====
+    - name: Stop Jetty (PROD)
+      ansible.builtin.command:
+        cmd: ./jetty.sh stop
+        chdir: /home/usrjobscheduler/sos-berlin.com/js7/joc/jetty/bin/
+      become_user: usrjobscheduler
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    # ===== Stop Controller =====
+    - name: Stop Controller (PROD)
+      ansible.builtin.command:
+        cmd: ./controller.sh stop
+        chdir: /opt/aplicacoes/js7/controller/bin/
+      become_user: usrjobscheduler
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'STOP'
+
+    # ===== Tratamento PIDs zumbis =====
+    - name: Verificar PIDs JS7 (PROD)
+      ansible.builtin.shell: "jps -l | egrep 'XmlConfiguration|ControllerMain|AgentMain' | awk '{print $1}'"
+      register: pids_js7_prod
+      changed_when: false
+      failed_when: false
+      when: acao == 'STOP'
+
+    - name: Matar PIDs JS7 zumbis (PROD)
+      ansible.builtin.shell: "kill -9 {{ item }}"
+      loop: "{{ pids_js7_prod.stdout_lines }}"
+      when: acao == 'STOP' and pids_js7_prod.stdout_lines | length > 0
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+
+    # ===== Start Jetty =====
+    - name: Start Jetty (PROD)
+      ansible.builtin.command:
+        cmd: ./jetty.sh start
+        chdir: /home/usrjobscheduler/sos-berlin.com/js7/joc/jetty/bin/
+      become_user: usrjobscheduler
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    # ===== Start Controller =====
+    - name: Start Controller (PROD)
+      ansible.builtin.command:
+        cmd: ./controller.sh start
+        chdir: /opt/aplicacoes/js7/controller/bin/
+      become_user: usrjobscheduler
+      async: 600
+      poll: 5
+      changed_when: true
+      failed_when: false
+      when: acao == 'START'
+
+    # ===== Validação pós-start =====
+    - name: Validar processos JS7 (PROD)
+      ansible.builtin.shell: "jps -l | egrep 'XmlConfiguration|ControllerMain' | awk '{print $1}'"
+      register: js7_pids_valida
+      changed_when: false
+      failed_when: acao == 'START' and js7_pids_valida.stdout_lines | length == 0
+
+    - name: Exibir resultado JS7 (PROD)
+      ansible.builtin.debug:
+        msg: >-
+          {% if acao == 'START' and js7_pids_valida.stdout_lines | length > 0 %}
+            JS7 iniciado com sucesso — PIDs: {{ js7_pids_valida.stdout_lines | join(', ') }}
+          {% elif acao == 'STOP' %}
+            JS7 interrompido com sucesso.
+          {% else %}
+            Falha na ação {{ acao }} — verifique manualmente os processos.
+          {% endif %}

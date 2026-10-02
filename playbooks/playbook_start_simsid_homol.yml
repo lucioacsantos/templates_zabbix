@@ -1,0 +1,16 @@
+---
+- name: Start SimSID — Homologação
+  hosts: hxjs03.energia.org.br
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Executar start do SimSID
+      ansible.builtin.command:
+        cmd: ./executa_simsid.sh
+        chdir: /opt/aplicacoes/simsid/scripts
+      become_user: usrsimsid
+      async: 600     
+      poll: 5
+      changed_when: true
+      failed_when: false

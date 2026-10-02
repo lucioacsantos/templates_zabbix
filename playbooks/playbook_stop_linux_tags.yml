@@ -1,0 +1,39 @@
+---
+- name: TESTE TAGS
+  hosts: lab-aut08.energia.org.br,lab-aut11.energia.org.br
+  gather_facts: false
+  
+  vars_files:
+    - vars/playbook_comandos_stop_linux.yml
+
+  tasks:
+    - name: lab-aut08
+      ansible.builtin.shell: uptime
+      tags:
+        - lab-aut08
+
+    - name: Executar comando
+      ansible.builtin.shell: "./{{ item.comando }}"
+      args:
+        chdir: "{{ item.diretorio }}"
+      become: true
+      become_user: "{{ item.user }}"
+      delegate_to: "{{ item.server }}"
+      loop: "{{ comandos_lab }}"
+      ignore_errors: yes
+      when: inventory_hostname == item.server
+      tags:
+        - lab-aut08
+
+- name: TESTE TAGS
+  hosts: lab-aut09.energia.org.br,lab-aut11.energia.org.br
+  gather_facts: false
+  
+  vars_files:
+    - comandos_stop_linux.yml
+
+  tasks:
+    - name: lab-aut09
+      ansible.builtin.shell: uname -r
+      tags:
+        - lab-aut09
