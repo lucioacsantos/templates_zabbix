@@ -1,0 +1,287 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 7eca1605c2d0477788973e7b7b2b617d
+      name: 'OpenShift Monitoring'
+  templates:
+    - uuid: 2fe47f38f2164d5883f58560ebc3d383
+      template: 'Template OpenShift Containers V2'
+      name: 'Template OpenShift Containers V2'
+      description: |
+        CCEE
+        Template Zabbix 7.4
+        Coleta dados via API Thanos em Clusters RHEL OpenShift.
+      groups:
+        - name: 'OpenShift Monitoring'
+      discovery_rules:
+        - uuid: 7a1e8a6b7f3c46d08e59a49bc41088d7
+          name: 'Discover Running Containers'
+          type: HTTP_AGENT
+          key: container.discovery
+          delay: 1h
+          item_prototypes:
+            - uuid: d8b40c2f9e1a47d3b6c58f02a7e9d1b4
+              name: 'CPU Index (% do limit) {#POD} - {#NAMESPACE}'
+              type: CALCULATED
+              key: 'container.cpu.index[{#NAMESPACE},{#POD}]'
+              delay: 5m
+              value_type: FLOAT
+              units: '%'
+              params: '(last(//container.cpu.usage[{#NAMESPACE},{#POD}]) / (last(//container.cpu.limit[{#NAMESPACE},{#POD}]) + 0.0000001)) * 100'
+              description: 'Índice de utilização de CPU em % do limit. Calculado a partir dos itens usage e limit. O termo +0.0000001 evita divisão por zero.'
+              tags:
+                - tag: Application
+                  value: '{#APP_NAME}'
+                - tag: Metric
+                  value: cpu-index
+                - tag: Namespace
+                  value: '{#NAMESPACE}'
+            - uuid: b7e2d40a9c1f4e8da6b35f72c094d8e1
+              name: 'CPU Limit (cores) {#POD} - {#NAMESPACE}'
+              type: HTTP_AGENT
+              key: 'container.cpu.limit[{#NAMESPACE},{#POD}]'
+              delay: 5m
+              value_type: FLOAT
+              units: cores
+              description: 'Limite de CPU configurado (limits.cpu) em cores.'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.result[0].value[1]'
+              url: 'https://{$URL_THANOS}/api/v1/query?query=sum(kube_pod_container_resource_limits%7Bnamespace%3D%22{#NAMESPACE}%22,pod%3D%22{#POD}%22,resource%3D%22cpu%22%7D)'
+              headers:
+                - name: Authorization
+                  value: 'Bearer {$BEARER_TOKEN}'
+              tags:
+                - tag: Application
+                  value: '{#APP_NAME}'
+                - tag: Metric
+                  value: cpu-limit
+                - tag: Namespace
+                  value: '{#NAMESPACE}'
+              trigger_prototypes:
+                - uuid: c5a91f3e7d2b48c6a9e04b1f8d6c3a70
+                  expression: 'last(/Template OpenShift Containers V2/container.cpu.limit[{#NAMESPACE},{#POD}])=0'
+                  name: 'CPU sem limit definido - App: {#APP_NAME} (Pod: {#POD})'
+                  priority: INFO
+                  description: 'O pod não possui limits.cpu configurado. O índice de CPU não poderá ser calculado.'
+                  manual_close: 'YES'
+            - uuid: 0a7e3c92d1b4486fa8c06e5b9d2f7a14
+              name: 'CPU Throttling {#POD} - {#NAMESPACE}'
+              type: HTTP_AGENT
+              key: 'container.cpu.throttling[{#NAMESPACE},{#POD}]'
+              delay: 5m
+              value_type: FLOAT
+              units: '%'
+              description: 'Percentual de períodos de CPU estrangulados (CFS throttling).'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.result[0].value[1]'
+              url: 'https://{$URL_THANOS}/api/v1/query?query=rate(container_cpu_cfs_throttled_periods_total%7Bnamespace%3D%22{#NAMESPACE}%22,pod%3D%22{#POD}%22%7D%5B5m%5D)%2Frate(container_cpu_cfs_periods_total%7Bnamespace%3D%22{#NAMESPACE}%22,pod%3D%22{#POD}%22%7D%5B5m%5D)%2A100'
+              headers:
+                - name: Authorization
+                  value: 'Bearer {$BEARER_TOKEN}'
+              tags:
+                - tag: Application
+                  value: '{#APP_NAME}'
+                - tag: Metric
+                  value: cpu-throttling
+                - tag: Namespace
+                  value: '{#NAMESPACE}'
+              trigger_prototypes:
+                - uuid: 1b8f4d03e2c5497ab9d17f6c0e3a8b25
+                  expression: 'avg(/Template OpenShift Containers V2/container.cpu.throttling[{#NAMESPACE},{#POD}],10m)>25'
+                  name: 'CPU throttling alto - App: {#APP_NAME} (Pod: {#POD})'
+                  priority: HIGH
+                  description: 'Mais de 25% dos períodos de CPU estrangulados por 10 min. Avaliar aumento do limits.cpu.'
+                  manual_close: 'YES'
+            - uuid: a3f8c91d4e7b42a59c1d6f0b8e3a7c52
+              name: 'CPU Usage (cores) {#POD} - {#NAMESPACE}'
+              type: HTTP_AGENT
+              key: 'container.cpu.usage[{#NAMESPACE},{#POD}]'
+              delay: 5m
+              value_type: FLOAT
+              units: cores
+              description: 'Uso de CPU em cores (rate 5m), sem cálculo de percentual.'
+              preprocessing:
+                - type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - '-1'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JSONPATH
+                  parameters:
+                    - '$.data.result[0].value[1]'
+              url: 'https://{$URL_THANOS}/api/v1/query?query=sum(rate(container_cpu_usage_seconds_total%7Bnamespace%3D%22{#NAMESPACE}%22,pod%3D%22{#POD}%22%7D%5B5m%5D))'
+              headers:
+                - name: Authorization
+                  value: 'Bearer {$BEARER_TOKEN}'
+              tags:
+                - tag: Application
+                  value: '{#APP_NAME}'
+                - tag: Metric
+                  value: cpu-usage
+                - tag: Namespace
+                  value: '{#NAMESPACE}'
+          trigger_prototypes:
+            - uuid: e1c73a09d4f2486bb8a15c6e0f3d2a87
+              expression: 'avg(/Template OpenShift Containers V2/container.cpu.index[{#NAMESPACE},{#POD}],5m)>85 and last(/Template OpenShift Containers V2/container.cpu.limit[{#NAMESPACE},{#POD}])>0'
+              name: 'CPU alta sustentada - App: {#APP_NAME} (Pod: {#POD})'
+              priority: WARNING
+              description: 'Índice médio de CPU acima de 85% do limit por 5 min.'
+              manual_close: 'YES'
+            - uuid: f4d80b1e6a3c49d2a7b9e05c8f1a6d39
+              expression: 'avg(/Template OpenShift Containers V2/container.cpu.index[{#NAMESPACE},{#POD}],5m)>100 and last(/Template OpenShift Containers V2/container.cpu.limit[{#NAMESPACE},{#POD}])>0'
+              name: 'CPU estourando o limit - App: {#APP_NAME} (Pod: {#POD})'
+              priority: HIGH
+              description: 'Índice médio de CPU acima de 100% do limit por 5 min. Throttling provável.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'CPU alta sustentada - App: {#APP_NAME} (Pod: {#POD})'
+                  expression: 'avg(/Template OpenShift Containers V2/container.cpu.index[{#NAMESPACE},{#POD}],5m)>85 and last(/Template OpenShift Containers V2/container.cpu.limit[{#NAMESPACE},{#POD}])>0'
+          graph_prototypes:
+            - uuid: 42c9417ba5b745f4b975860aa5a15824
+              name: 'CPU Index & Throttling - {#POD} ({#NAMESPACE})'
+              yaxismax: '120'
+              ymin_type_1: FIXED
+              ymax_type_1: FIXED
+              graph_items:
+                - drawtype: GRADIENT_LINE
+                  color: 2774A4
+                  item:
+                    host: 'Template OpenShift Containers V2'
+                    key: 'container.cpu.index[{#NAMESPACE},{#POD}]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: 'Template OpenShift Containers V2'
+                    key: 'container.cpu.throttling[{#NAMESPACE},{#POD}]'
+            - uuid: 6513b7fd38f2443689dd97cd70c17998
+              name: 'CPU Usage vs Limit - {#POD} ({#NAMESPACE})'
+              graph_items:
+                - color: 1A7C11
+                  item:
+                    host: 'Template OpenShift Containers V2'
+                    key: 'container.cpu.usage[{#NAMESPACE},{#POD}]'
+                - sortorder: '1'
+                  drawtype: BOLD_LINE
+                  color: F63100
+                  item:
+                    host: 'Template OpenShift Containers V2'
+                    key: 'container.cpu.limit[{#NAMESPACE},{#POD}]'
+          url: 'https://{$URL_THANOS}/api/v1/query?query=container_cpu_usage_seconds_total'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$BEARER_TOKEN}'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var allowedNamespaces = "{$NAMESPACES}".split("|");
+                  var data = JSON.parse(value).data.result;
+                  var result = [];
+                  for (var i = 0; i < data.length; i++) {
+                      var m = data[i].metric;
+                      if (m.pod && allowedNamespaces.indexOf(m.namespace) !== -1) {
+                          var appName = m.pod.split("-").slice(0, -2).join("-") || m.pod;
+                          result.push({
+                              "{#CONTAINER}": m.container || "n/a",
+                              "{#NAMESPACE}": m.namespace,
+                              "{#POD}": m.pod,
+                              "{#APP_NAME}": appName
+                          });
+                      }
+                  }
+                  return JSON.stringify({ "data": result });
+      macros:
+        - macro: '{$BEARER_TOKEN}'
+          description: 'Token de autenitcação do ServiceAccount'
+        - macro: '{$NAMESPACES}'
+          value: default
+          description: 'Namespaces separados por pipe |'
+        - macro: '{$URL_THANOS}'
+          description: 'URL do endpoint do Thanos/Prometheus'
+      dashboards:
+        - uuid: 47b4d26e266c41158492fb4cf705ce3f
+          name: Desempenho
+          pages:
+            - name: 'CPU - Memória'
+              widgets:
+                - type: svggraph
+                  name: 'Uso de CPU'
+                  width: '72'
+                  height: '6'
+                  fields:
+                    - type: INTEGER
+                      name: ds.0.color_palette
+                      value: '2'
+                    - type: STRING
+                      name: ds.0.items.0
+                      value: 'CPU index*'
+                    - type: INTEGER
+                      name: legend
+                      value: '0'
+                    - type: STRING
+                      name: reference
+                      value: ZOXJD
+                    - type: INTEGER
+                      name: righty
+                      value: '0'
+                - type: honeycomb
+                  name: 'Carga de CPU %'
+                  'y': '6'
+                  width: '24'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'CPU Index*'
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: ZDPWU
+                - type: honeycomb
+                  name: 'CPU Limit por Pod'
+                  x: '24'
+                  'y': '6'
+                  width: '24'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'CPU limit*'
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: SCGKO
+                - type: honeycomb
+                  name: 'CPU Throttling por Pod'
+                  x: '48'
+                  'y': '6'
+                  width: '24'
+                  height: '6'
+                  fields:
+                    - type: STRING
+                      name: items.0
+                      value: 'CPU Throttling*'
+                    - type: STRING
+                      name: primary_label
+                      value: '{ITEM.NAME}'
+                    - type: STRING
+                      name: reference
+                      value: AHGZD
