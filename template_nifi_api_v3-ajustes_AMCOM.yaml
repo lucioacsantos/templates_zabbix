@@ -1,0 +1,1749 @@
+zabbix_export:
+  version: '7.4'
+  templates:
+  - uuid: 20ef1da317484076ab7ac8ca26f5e835
+    template: Apache NiFi API by JS
+    name: Apache NiFi API by JS
+    description: 'Template master para monitoramento do Apache NiFi via API REST (/flow,
+      /controller, /counters).
+
+      Coleta e processamento com JavaScript embutido (item HTTP + preprocessing JS),
+      sem agente.
+
+
+      Autenticacao: header "Authorization: Bearer {$NIFI.TOKEN}" em todas as chamadas.
+      O token (JWT de ~8h) e renovado pelo playbook/cron renovar_nifi_token (login {$NIFI.USER}/{$NIFI.PASSWORD}
+      em /access/token) e o sinal do cron chega no item trapper nifi.token.renovado
+      (zabbix_sender -k nifi.token.renovado -o 1); item de login embarcado roda apenas
+      1x/hora para diagnostico.
+
+
+      TO-BE (DBT-6131): descoberta de fluxos via nifi.fluxos.status (recursive=true),
+      com itens/triggers por fluxo ({$NIFI.FLUXO.PROFUNDIDADE}), alerta de parado so
+      para {$NIFI.DEVE_RODAR:"<ID do PG>"}=1 no host, storage com limiares PROPRIOS
+      ({$NIFI.REPO_PCT.WARN}/{$NIFI.REPO_PCT.HIGH}), heap em 80% e bulletins com item
+      nifi.api.bullets.error.
+
+
+      LLD antigas (Process Groups / filas por PG), itens nifi.cluster.nodes/nodes_connected
+      e trigger antiga de bullets vem DESATIVADAS (nao excluidas) — poderao ser reativadas
+      ou removidas apos homologacao das descobertas novas.
+
+
+      Permissoes minimas da conta no NiFi: "view the user interface", "view system
+      diagnostics" e "view the component" no grupo raiz (nao precisa de /controller).
+
+
+      Recomendacao TO-BE: instalar Zabbix agent 2 na VM e vincular "Linux by Zabbix
+      agent" para CPU/memoria/disco (vinculo por host, fora deste template).
+
+
+      Requer Zabbix Server/Proxy >= 7.4 e conectividade HTTP(S) ate a API do NiFi.'
+    groups:
+    - name: Templates
+    macros:
+    - macro: '{$NIFI.URL}'
+      value: https://nifi.exemplo.com:8443/nifi-api
+      description: 'URL base da API REST do NiFi (sem barra final). Ex.: https://host:8443/nifi-api'
+    - macro: '{$NIFI.USER}'
+      value: ''
+      description: Usuario para autenticacao Basic. Vazio = sem autenticacao.
+    - macro: '{$NIFI.PASSWORD}'
+      type: SECRET_TEXT
+      description: Senha para autenticacao Basic.
+    - macro: '{$NIFI.TOKEN}'
+      type: SECRET_TEXT
+      description: 'Token de acesso do NiFi. Preencha com um token de longa duracao
+        OU deixe vazio e use {$NIFI.USER}/{$NIFI.PASSWORD}: o item de login obtera
+        o token em {$NIFI.URL}/access/token e guardara no valor do item.'
+    - macro: '{$NIFI.AUTH}'
+      value: basic
+      description: 'Modo de autenticacao: basic (login automatico via {$NIFI.USER}/{$NIFI.PASSWORD}
+        em /access/token, token armazenado em {$NIFI.TOKEN}) ou token (usa {$NIFI.TOKEN}
+        direto).'
+    - macro: '{$NIFI.ROOT_PG_ID}'
+      value: root
+      description: ID do Process Group raiz (ou "root").
+    - macro: '{$NIFI.PROCESS_GROUPS}'
+      value: ''
+      description: Lista estatica de IDs de Process Groups separados por virgula.
+        Vazio = descobrir via API.
+    - macro: '{$NIFI.TIMEOUT}'
+      value: 15s
+      description: 'Timeout das requisicoes HTTP (com unidade, ex.: 15s ou {$X}s).'
+    - macro: '{$NIFI.RETRIES}'
+      value: '2'
+      description: Tentativas extras em caso de falha.
+    - macro: '{$NIFI.QUEUE_BACKPRESSURE_PCT}'
+      value: '80'
+      description: '% do back pressure (object/bytes threshold) para trigger de fila
+        saturada.'
+    - macro: '{$NIFI.QUEUE_AGE_MIN}'
+      value: '300'
+      description: Idade maxima (s) do dado mais antigo na fila antes do trigger.
+    - macro: '{$NIFI.BULLETS_WARN}'
+      value: '0'
+      description: Quantidade de bullets em WARNING para trigger.
+    - macro: '{$NIFI.BULLETS_ERROR}'
+      value: '1'
+      description: Quantidade de bullets em ERROR para trigger.
+    - macro: '{$NIFI.PROC_STOPPED}'
+      value: '0'
+      description: Processadores stopped/invalid/disabled tolerados antes do trigger
+        (>=).
+    - macro: '{$NIFI.GC_PCT}'
+      value: '80'
+      description: '% de tempo em GC da JVM para trigger.'
+    - macro: '{$NIFI.HEAP_PCT}'
+      value: '80'
+      description: '% de heap da JVM para trigger (TO-BE: 80).'
+    - macro: '{$NIFI.REPO_PCT.WARN}'
+      value: '70'
+      description: '% de uso dos repositorios (flowfile/content/provenance) para trigger
+        Warning (TO-BE: 70).'
+    - macro: '{$NIFI.REPO_PCT.HIGH}'
+      value: '90'
+      description: '% de uso dos repositorios para trigger High (TO-BE: 90). A trigger
+        Warning depende desta para nao duplicar notificacoes.'
+    - macro: '{$NIFI.DEVE_RODAR}'
+      value: '0'
+      description: 'Padrao (sem contexto) para fluxos descobertos. No host, defina
+        {$NIFI.DEVE_RODAR:"<ID do process group>"}=1 para cada fluxo que deve rodar
+        — o alerta de fluxo parado so dispara para esses IDs (TO-BE 1.3).'
+    - macro: '{$NIFI.FLUXO.PROFUNDIDADE}'
+      value: '1'
+      description: 'Profundidade (sob a raiz) do que conta como "fluxo" na descoberta:
+        1 = grupos logo abaixo da raiz, 2 = um nivel abaixo, 0 = todos os niveis.'
+    - macro: '{$NIFI.COUNTERS_FILTER}'
+      value: ''
+      description: Regex (case-insensitive) para filtrar counters descobertos. Vazio
+        = todos.
+    - macro: '{$NIFI.STATUS_NS_TRIGGER}'
+      value: 3m
+      description: 'Ciclos/periodo com API down antes do trigger (com unidade, ex.:
+        3m).'
+    - macro: '{$NIFI.THREADS_MAX}'
+      value: '0'
+      description: Total de threads ativas para trigger (0 = desativado).
+    - macro: '{$NIFI.VERIFY_HOST}'
+      value: '1'
+      description: Validar host/SSL do endpoint (1=sim, 0=nao).
+    items:
+    - uuid: 28c9881441aa46dc8d13236a9cfb6ea5
+      key: nifi.api.status
+      name: 'NiFi API: Status do servico'
+      type: HTTP_AGENT
+      value_type: CHAR
+      history: 1d
+      trends: '0'
+      request_method: GET
+      url: '{$NIFI.URL}/flow/status'
+      headers:
+      - name: Content-Type
+        value: application/json
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+      timeout: '{$NIFI.TIMEOUT}'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nvar c = body.controllerStatus;\nif (!c)\
+          \ { throw 'NiFi API: resposta inesperada'; }\nreturn JSON.stringify({\n\
+          \  'status': 'ok',\n  'active_threads': c.activeThreadCount != null ? c.activeThreadCount\
+          \ : 0,\n  'queued': c.flowFilesQueued != null ? c.flowFilesQueued : 0,\n\
+          \  'queued_bytes': c.bytesQueued != null ? c.bytesQueued : 0,\n  'running':\
+          \ c.runningCount != null ? c.runningCount : 0,\n  'invalid': c.invalidCount\
+          \ != null ? c.invalidCount : 0\n});\n"
+      triggers:
+      - uuid: c924980ec265467b83e9438b69182a83
+        expression: nodata(/Apache NiFi API by JS/nifi.api.status,{$NIFI.STATUS_NS_TRIGGER})=1
+        name: 'NiFi API: sem dados (servico indisponivel)'
+        priority: HIGH
+        description: A API do NiFi nao respondeu nos ultimos {$NIFI.STATUS_NS_TRIGGER}
+          minutos.
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: c9a9d88eeecf43f7bf5b299a482fb8b2
+      key: nifi.api.bullets
+      name: 'NiFi API: Bullets do UI (warnings/errors)'
+      type: HTTP_AGENT
+      value_type: TEXT
+      history: 1d
+      trends: '0'
+      request_method: GET
+      url: '{$NIFI.URL}/flow/bulletin-board'
+      timeout: '{$NIFI.TIMEOUT}'
+      preprocessing:
+      - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
+        parameters:
+        - |
+          var body = JSON.parse(value);
+          var lista = (body.bulletinBoard && body.bulletinBoard.bulletins) ? body.bulletinBoard.bulletins : [];
+          var warn = 0, err = 0, semPermissao = 0, last = '';
+          lista.forEach(function (e) {
+            if (!e.bulletin) { semPermissao++; return; }
+            var lvl = String(e.bulletin.level || '').toUpperCase();
+            if (lvl === 'WARNING' || lvl === 'WARN') { warn++; }
+            if (lvl === 'ERROR') {
+              err++;
+              if (!last) { last = (e.bulletin.sourceName || '') + ': ' + String(e.bulletin.message || '').substring(0, 200); }
+            }
+          });
+          return JSON.stringify({ warn: warn, error: err, sem_permissao: semPermissao, last_error: last });
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+      triggers:
+      - uuid: 89da7e9fa1124c408e52b42d998bf773
+        status: DISABLED
+        expression: find(/Apache NiFi API by JS/nifi.api.bullets,5m,"like","\"error\":{$NIFI.BULLETS_ERROR}")=1
+        name: 'NiFi: bullets de ERROR no bulletin board'
+        priority: AVERAGE
+        description: 'DESATIVADA (TO-BE): substituida pela trigger do item nifi.api.bullets.error,
+          que reconhece de 2 a 9 erros. A busca textual com "like" nao casava com
+          quantidades de 2+ algarismos.'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: notice
+    - uuid: 49a500a6d31f4f51bfaeb8a45a2e7c87
+      key: nifi.api.bullets.error
+      name: 'NiFi: bulletins ERROR'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+        key: nifi.api.bullets
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.error
+      triggers:
+      - uuid: ae7c1b59c69d4e6ea1ad6fcca3b8c3e9
+        expression: last(/Apache NiFi API by JS/nifi.api.bullets.error)>={$NIFI.BULLETS_ERROR}
+        name: 'NiFi: boletins ERROR no bulletin board'
+        priority: AVERAGE
+        description: 'Existem {$NIFI.BULLETS_ERROR} ou mais boletins de ERROR no bulletin
+          board do NiFi (contador numerico do item dependente).'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: notice
+    - uuid: 139dd8cf1f7545a7abbd05274e5e9bc4
+      key: nifi.api.token
+      name: 'NiFi API: Token de acesso (login)'
+      type: HTTP_AGENT
+      value_type: CHAR
+      history: '0'
+      trends: '0'
+      delay: 1h
+      request_method: POST
+      post_type: RAW
+      posts: username={$NIFI.USER}&password={$NIFI.PASSWORD}
+      url: '{$NIFI.URL}/access/token'
+      timeout: '{$NIFI.TIMEOUT}'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var v = value.trim().replace(/\n/g, '''');
+
+          if (!v || v.length < 20) { throw ''Login NiFi falhou: resposta invalida'';
+          }
+
+          return v;
+
+          '
+      authtype: NONE
+      headers:
+      - name: Content-Type
+        value: application/x-www-form-urlencoded
+      status_codes: '201'
+      description: 'Faz login no NiFi (1x por hora, evita bloqueio da conta no AD
+        por tentativas repetidas — TO-BE 1.4). Token obtido e valido para diagnostico;
+        o token em uso vem de {$NIFI.TOKEN} renovado pelo playbook renovar_nifi_token.'
+    - uuid: 3c79e1861ec84cb58fdcba2841703da3
+      key: nifi.token.renovado
+      name: 'NiFi: token renovado (sinal do playbook)'
+      type: TRAP
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      description: 'O cron/playbook renovar_nifi_token envia 1 apos cada renovacao:
+        zabbix_sender -z <servidor-zabbix> -s <host> -k nifi.token.renovado -o 1.
+        Execute o playbook para cada host NiFi (um token por instancia — TO-BE). Se
+        o sinal faltar por 8h, a renovacao falhou e a coleta em Bearer {$NIFI.TOKEN}
+        vai parar.'
+      triggers:
+      - uuid: e328d43892e64ec19cb0a0450a5047d5
+        expression: nodata(/Apache NiFi API by JS/nifi.token.renovado,8h)=1
+        name: 'NiFi: renovacao do token falhou (sem sinal do playbook)'
+        priority: HIGH
+        description: 'Nenhum sinal do playbook renovar_nifi_token nos ultimos 8h.
+          O cron pode ter falhado e a coleta por token vira "API indisponivel" em
+          breve.'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    - uuid: 6ad541e319a14677878807b7dfd08a1e
+      key: nifi.fluxos.status
+      name: 'NiFi: status dos fluxos'
+      type: HTTP_AGENT
+      value_type: TEXT
+      history: 1d
+      trends: '0'
+      delay: 1m
+      request_method: GET
+      url: '{$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}/status?recursive=true'
+      timeout: 60s
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          // Codigo 5 — status dos fluxos (alteracoes 9/10 do DBT-6131 / TO-BE AMCOM)
+          // Entrada: GET {$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}/status?recursive=true
+          // Saida:   lista JSON com um bloco por "fluxo" (Process Group na profundidade
+          //          {$NIFI.FLUXO.PROFUNDIDADE}); os contadores de PROCESSADORES/FILAS de cada
+          //          fluxo acumulam o subgrupo inteiro (TO-BE 1.3) — os "fluxos" com metricas
+          //          de janela 5m (in/out) usam o aggregateSnapshot proprio, que o NiFi ja
+          //          agrega por arvore.
+          // Portas de entrada/saida sao ignoradas de proposito: portas sem conexao aparecem
+          // como "invalidas" no NiFi, mas nao indicam falha (35 falsos positivos no HML).
+          // Compativel com NiFi 1.x (campos flat + versionedFlowState) e 2.x (comps
+          // "{id, ...StatusSnapshot}", sem versionedFlowState no status).
+          // '{$NIFI.FLUXO.PROFUNDIDADE}' e substituida pelo Zabbix antes da execucao;
+          // se nao resolver, parseInt falha e o padrao 1 (do template) e usado.
+
+          var prof = parseInt('{$NIFI.FLUXO.PROFUNDIDADE}', 10);
+          if (isNaN(prof) || prof < 0) { prof = 1; }
+
+          var entity = JSON.parse(value);
+          var root = entity && (entity.processGroupStatus || entity);
+          if (!root || (!root.id && !root.aggregateSnapshot)) { throw 'NiFi: resposta inesperada de /flow/process-groups/*/status'; }
+
+          function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+          function flt(v) { var f = parseFloat(v); return isNaN(f) ? 0 : f; }
+          function rnd2(x) { return Math.round(x * 100) / 100; }
+          function desempacota(e) {
+            if (!e) { return {}; }
+            return e.processorStatusSnapshot || e.connectionStatusSnapshot || e.processGroupStatusSnapshot || e.remoteProcessGroupStatusSnapshot || e;
+          }
+          function snap(d) { return (d && (d.aggregateSnapshot || d)) || {}; }
+
+          function bytesDe(txt) {
+            var m = String(txt || '').match(/([\d.,]+)\s*(B|KB|MB|GB|TB)/i);
+            if (!m) { return 0; }
+            var f = parseFloat(m[1].replace(',', '.'));
+            if (isNaN(f)) { return 0; }
+            var mult = { B: 1, KB: 1024, MB: 1048576, GB: 1073741824, TB: 1099511627776 };
+            return Math.round(f * mult[m[2].toUpperCase()]);
+          }
+
+          function usoFila(c) {
+            var qO = c.flowFilesQueued != null ? num(c.flowFilesQueued)
+              : (c.queuedCount != null ? num(c.queuedCount)
+              : (typeof c.queued === 'number' ? c.queued : num(String(c.queued || '').split(' ')[0])));
+            var qB = c.bytesQueued != null ? num(c.bytesQueued)
+              : (c.queuedBytes != null ? num(c.queuedBytes)
+              : (typeof c.queuedSize === 'number' ? num(c.queuedSize) : bytesDe(c.queued)));
+            var thO = num(c.backPressureObjectThreshold);
+            var thB = num(c.backPressureBytesThreshold);
+            var u1 = c.percentUseCount != null ? flt(c.percentUseCount) : (thO > 0 ? 100 * qO / thO : 0);
+            var u2 = c.percentUseBytes != null ? flt(c.percentUseBytes) : (thB > 0 ? 100 * qB / thB : 0);
+            return { pct: Math.max(u1, u2), qO: qO, qB: qB };
+          }
+
+          function msDe(p) {
+            if (p.taskDurationNanos != null) { return num(p.taskDurationNanos) / 1000000; }
+            if (p.tasksDurationNanos != null) { return num(p.tasksDurationNanos) / 1000000; }
+            if (p.taskDurationMillis != null) { return num(p.taskDurationMillis); }
+            if (p.taskMillis != null) { return num(p.taskMillis); }
+            return 0;
+          }
+          function tasksDe(p) {
+            if (p.taskCount != null) { return num(p.taskCount); }
+            if (p.invoked != null) { return num(p.invoked); }
+            return 0;
+          }
+
+          var rows = [];
+
+          function coletar(dto, depth) {
+            var s = snap(dto);
+            var acc = {
+              id: dto && dto.id != null ? String(dto.id) : String(s.id || ''),
+              nome: String((dto && dto.name) || s.name || ''),
+              profundidade: depth,
+              stopped: 0,
+              invalid: 0,
+              max_uso_fila_pct: 0,
+              conexoes_contrapressao: 0,
+              fila_flowfiles: 0,
+              fila_bytes: 0,
+              pgs_com_deriva: 0,
+              flowfiles_in_5min: 0,
+              flowfiles_out_5min: 0,
+              bytes_in_5min: 0,
+              bytes_out_5min: 0,
+              threads_ativas: 0,
+              tarefas_ms_5min: 0,
+              proc_mais_lento: '',
+              proc_mais_lento_ms_por_tarefa: 0,
+              versionamento: ''
+            };
+
+            var estado = String(s.versionedFlowState || (dto && dto.versionedFlowState) || '');
+            if (estado !== '' && estado.toUpperCase() !== 'UP_TO_DATE') { acc.pgs_com_deriva = 1; }
+            acc.versionamento = estado;
+
+            var temProc = false;
+            (s.processorStatusSnapshots || []).forEach(function (e) {
+              var p = desempacota(e);
+              temProc = true;
+              var st = String(p.runStatus || p.state || '').toUpperCase();
+              if (st === 'STOPPED' || st === 'STOPPING') { acc.stopped++; }
+              if (st === 'INVALID') { acc.invalid++; }
+              acc.threads_ativas += num(p.activeThreadCount);
+              var ms = msDe(p);
+              var tz = tasksDe(p);
+              acc.tarefas_ms_5min += ms;
+              if (tz > 0 && ms > 0 && (ms / tz) > acc.proc_mais_lento_ms_por_tarefa) {
+                acc.proc_mais_lento_ms_por_tarefa = ms / tz;
+                acc.proc_mais_lento = String(p.name || p.id || '');
+              }
+            });
+
+            (s.connectionStatusSnapshots || []).forEach(function (e) {
+              var c = desempacota(e);
+              var u = usoFila(c);
+              acc.fila_flowfiles += u.qO;
+              acc.fila_bytes += u.qB;
+              if (u.pct > acc.max_uso_fila_pct) { acc.max_uso_fila_pct = u.pct; }
+              if (u.pct >= 100) { acc.conexoes_contrapressao++; }
+            });
+
+            // O aggregateSnapshot de cada PG ja agrega a subarvore inteira (NiFi 2.x e 1.x
+            // recursive): filas, in/out 5m, threads e tempo de processamento vem do proprio
+            // snapshot; se o campo nao existir na versao em uso, caimos na soma da subarvore.
+            var temQ = (s.flowFilesQueued != null || s.queuedCount != null);
+            var temQB = (s.bytesQueued != null);
+            var temThr = (s.activeThreadCount != null);
+            var temNanos = (s.processingNanos != null);
+
+            acc.flowfiles_in_5min = num(s.flowFilesIn);
+            acc.flowfiles_out_5min = num(s.flowFilesOut);
+            acc.bytes_in_5min = num(s.bytesIn);
+            acc.bytes_out_5min = num(s.bytesOut);
+            if (temQ) { acc.fila_flowfiles = num(s.flowFilesQueued != null ? s.flowFilesQueued : s.queuedCount); }
+            if (temQB) { acc.fila_bytes = num(s.bytesQueued); }
+            if (temThr) { acc.threads_ativas = num(s.activeThreadCount) + num(s.statelessActiveThreadCount); }
+            if (temNanos) { acc.tarefas_ms_5min = num(s.processingNanos) / 1000000; }
+
+            (s.processGroupStatusSnapshots || s.groupStatusSnapshots || []).forEach(function (e) {
+              var sub = coletar(desempacota(e), depth + 1);
+              acc.stopped += sub.stopped;
+              acc.invalid += sub.invalid;
+              acc.max_uso_fila_pct = Math.max(acc.max_uso_fila_pct, sub.max_uso_fila_pct);
+              acc.conexoes_contrapressao += sub.conexoes_contrapressao;
+              if (!temQ) { acc.fila_flowfiles += sub.fila_flowfiles; }
+              if (!temQB) { acc.fila_bytes += sub.fila_bytes; }
+              acc.pgs_com_deriva += sub.pgs_com_deriva;
+              if (!temThr) { acc.threads_ativas += sub.threads_ativas; }
+              if (!temNanos) { acc.tarefas_ms_5min += sub.tarefas_ms_5min; }
+              if (sub.proc_mais_lento_ms_por_tarefa > acc.proc_mais_lento_ms_por_tarefa) {
+                acc.proc_mais_lento_ms_por_tarefa = sub.proc_mais_lento_ms_por_tarefa;
+                acc.proc_mais_lento = sub.proc_mais_lento;
+              }
+            });
+
+            if (prof === 0 || depth === prof) {
+              rows.push({
+                id: acc.id,
+                nome: acc.nome,
+                profundidade: depth,
+                stopped: acc.stopped,
+                invalid: acc.invalid,
+                max_uso_fila_pct: rnd2(acc.max_uso_fila_pct),
+                conexoes_contrapressao: acc.conexoes_contrapressao,
+                fila_flowfiles: acc.fila_flowfiles,
+                fila_bytes: acc.fila_bytes,
+                pgs_com_deriva: acc.pgs_com_deriva,
+                flowfiles_in_5min: acc.flowfiles_in_5min,
+                flowfiles_out_5min: acc.flowfiles_out_5min,
+                bytes_in_5min: acc.bytes_in_5min,
+                bytes_out_5min: acc.bytes_out_5min,
+                threads_ativas: acc.threads_ativas,
+                tarefas_ms_5min: Math.round(acc.tarefas_ms_5min),
+                proc_mais_lento: acc.proc_mais_lento,
+                proc_mais_lento_ms_por_tarefa: rnd2(acc.proc_mais_lento_ms_por_tarefa),
+                versionamento: acc.versionamento
+              });
+            }
+
+            return acc;
+          }
+
+          coletar(root, 0);
+          return JSON.stringify(rows);
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+      triggers:
+      - uuid: 2761bae8d8b3448ab6773498048eaca8
+        expression: nodata(/Apache NiFi API by JS/nifi.fluxos.status,5m)=1
+        name: 'NiFi: coleta dos fluxos parou'
+        priority: HIGH
+        description: 'O item mestre da descoberta de fluxos (recursive=true) nao
+          respondeu em 5m ou devolveu JSON invalido.'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: availability
+    discovery_rules:
+    - uuid: 551ea9d137aa43ae893db21c913517b3
+      status: DISABLED
+      key: nifi.discovery.process_groups
+      name: Descoberta de Process Groups
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}'
+      timeout: '{$NIFI.TIMEOUT}'
+      delay: 1h
+      lifetime: 30d
+      description: 'DESATIVADA (TO-BE DBT-6131): substituida pela "Descoberta de
+        Fluxos" (nifi.fluxos.descoberta), que enxerga parados/invalidos dentro de
+        subgrupos e filas em contrapressao. Reativar so se a descoberta nova nao for
+        homologada; nao excluir.'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nvar flow = (body.processGroupFlow && body.processGroupFlow.flow)\
+          \ ? body.processGroupFlow.flow : null;\nvar rootId = body.processGroupFlow\
+          \ ? body.processGroupFlow.id : '{$NIFI.ROOT_PG_ID}';\nvar groups = flow\
+          \ ? (flow.processGroups || []) : [];\nvar rows = [];\ngroups.forEach(function\
+          \ (g) {\n  var comp = g.component ? g.component : g;\n  if (!comp.id) {\
+          \ return; }\n  rows.push({ '{#PGID}': comp.id, '{#PGNAME}': comp.name ||\
+          \ comp.id, '{#PGPATH}': '/' });\n});\nif (!rows.length) {\n  rows.push({\
+          \ '{#PGID}': rootId, '{#PGNAME}': 'root', '{#PGPATH}': '/' });\n}\nreturn\
+          \ JSON.stringify({ 'data': rows });\n"
+      item_prototypes:
+      - uuid: dc270c31b61644c58b8199a57cae82ed
+        key: nifi.pg.status[{#PGID}]
+        name: 'PG {#PGNAME}: Status (raw)'
+        type: HTTP_AGENT
+        value_type: TEXT
+        history: 1d
+        trends: '0'
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus;
+
+            return JSON.stringify(s.aggregateSnapshot || s);
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: f1a50b3afd8944e5b3766fe0396f3a20
+        key: nifi.pg.threads[{#PGID}]
+        name: 'PG {#PGNAME}: Threads ativas'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: threads
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt((s.activeThreadCount != null ? s.activeThreadCount : 0),
+            10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: e67e3e0d91b64bb3a011fa9846157d33
+        key: nifi.pg.queued_count[{#PGID}]
+        name: 'PG {#PGNAME}: Filas - objetos em fila'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt(s.queuedCount, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: e6d920b681b84ec5a5e67c17893f719d
+        key: nifi.pg.queued_bytes[{#PGID}]
+        name: 'PG {#PGNAME}: Filas - bytes em fila'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: B
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt(s.bytesQueued, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: a7e2849776994699812d9d9a7ae7bb03
+        key: nifi.pg.flowfiles_in[{#PGID}]
+        name: 'PG {#PGNAME}: FlowFiles in (5m)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: '!/s'
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt(s.flowFilesQueued, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 5632af655fb74ca8a6607f783382913c
+        key: nifi.pg.flowfiles_out[{#PGID}]
+        name: 'PG {#PGNAME}: FlowFiles out (5m)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: '!/s'
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt(s.flowFilesTransferred, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 4cd2aac3ba7d4964a8a3be20208588d2
+        key: nifi.pg.bytes_read[{#PGID}]
+        name: 'PG {#PGNAME}: Bytes lidos (5m)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: Bps
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt(s.bytesRead, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 5da89b556fcd4909a2c25e689041be94
+        key: nifi.pg.bytes_written[{#PGID}]
+        name: 'PG {#PGNAME}: Bytes escritos (5m)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: Bps
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}/status'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            var s = body.processGroupStatus.aggregateSnapshot;
+
+            return parseInt(s.bytesWritten, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: b7f6b5eb7eeb4801b3921e5a488a4aaa
+        key: nifi.pg.proc_errors[{#PGID}]
+        name: 'PG {#PGNAME}: Processadores com erro/stopped'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var body = JSON.parse(value);\nvar procs = (body.processGroupFlow &&\
+            \ body.processGroupFlow.flow && body.processGroupFlow.flow.processors)\n\
+            \  ? body.processGroupFlow.flow.processors : [];\nvar bad = 0;\nvar BAD\
+            \ = ['INVALID', 'DISABLED', 'STOPPED'];\nprocs.forEach(function (p) {\n\
+            \  var st = (p.component && p.component.state) ? p.component.state.toUpperCase()\
+            \ : '';\n  var needs = p.component && (p.component.validationErrors ||\
+            \ []).length > 0;\n  if (st === 'INVALID' || needs) { bad++; }\n});\n\
+            return bad;\n"
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 8df38c3c1ab94e4895ab8b5acfe6d2ac
+        key: nifi.pg.uptime[{#PGID}]
+        name: 'PG {#PGNAME}: Uptime dos processadores (s)'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: s
+        request_method: GET
+        url: '{$NIFI.URL}/flow/process-groups/{#PGID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - "var body = JSON.parse(value);\nvar procs = (body.processGroupFlow &&\
+            \ body.processGroupFlow.flow && body.processGroupFlow.flow.processors)\n\
+            \  ? body.processGroupFlow.flow.processors : [];\nvar max = 0;\nvar now\
+            \ = Date.now();\nprocs.forEach(function (p) {\n  if (p.component && p.component.state\
+            \ === 'RUNNING' && p.status && p.status.statsSnapshot) {\n    var st =\
+            \ p.status.statsSnapshot;\n    var up = st.uptime ? parseInt(st.uptime,\
+            \ 10) : 0;\n    if (up > max) { max = up; }\n  }\n});\nreturn max;\n"
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      trigger_prototypes:
+      - uuid: c7de480d6d2e4942b50e8eecab1837ac
+        expression: nodata(/Apache NiFi API by JS/nifi.pg.status[{#PGID}],{$NIFI.STATUS_NS_TRIGGER})=1
+        name: 'PG {#PGNAME}: sem dados da API'
+        priority: WARNING
+        description: Process Group {#PGNAME} ({#PGID}) nao respondeu via API.
+        manual_close: 'YES'
+        tags:
+        - tag: processgroup
+          value: '{#PGNAME}'
+        - tag: scope
+          value: availability
+      - uuid: 80d897ef1b1440529796fc3fc4c6bf3c
+        expression: min(/Apache NiFi API by JS/nifi.pg.proc_errors[{#PGID}],10m)>{$NIFI.PROC_STOPPED}
+        name: 'PG {#PGNAME}: processadores invalidos/parados'
+        priority: AVERAGE
+        description: Existem processadores invalidos ou com erros de validacao no
+          PG {#PGNAME}.
+        manual_close: 'YES'
+        tags:
+        - tag: processgroup
+          value: '{#PGNAME}'
+        - tag: scope
+          value: availability
+      lld_macro_paths:
+      - lld_macro: '{#PGID}'
+        path: $.pgid
+      - lld_macro: '{#PGNAME}'
+        path: $.pgname
+      - lld_macro: '{#PGPATH}'
+        path: $.pgpath
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+    - uuid: 5b0f4630a052425ca5db80a9ae4800a8
+      key: nifi.fluxos.descoberta
+      name: Descoberta de Fluxos (TO-BE)
+      type: DEPENDENT
+      master_item:
+        key: nifi.fluxos.status
+      lifetime: 30d
+      description: 'Descobre um "fluxo" por Process Group na profundidade {$NIFI.FLUXO.PROFUNDIDADE}
+        (1 = grupos logo abaixo da raiz; 0 = todos). Fonte: item nifi.fluxos.status
+        (recursive=true). No host, defina {$NIFI.DEVE_RODAR:"<ID do PG>"}=1 para cada
+        fluxo que deve rodar — o alerta de parado so dispara para esses (TO-BE 1.3).'
+      item_prototypes:
+      - uuid: 4dcaeb42eb6349b28e1b0d571a1cbf5b
+        key: nifi.fluxo.parados[{#FLUXO_ID}]
+        name: '{#FLUXO}: processadores parados'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].stopped.first()"
+      - uuid: 03e282e7959b4c2fbc5a692910775a31
+        key: nifi.fluxo.invalidos[{#FLUXO_ID}]
+        name: '{#FLUXO}: processadores invalidos'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].invalid.first()"
+      - uuid: 98231450149f4aa084361f6b03c5fc93
+        key: nifi.fluxo.fila_uso[{#FLUXO_ID}]
+        name: '{#FLUXO}: maior uso de fila (%)'
+        type: DEPENDENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: '%'
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].max_uso_fila_pct.first()"
+      - uuid: 2bacdc1524614cd583a89920442d9a3f
+        key: nifi.fluxo.contrapressao[{#FLUXO_ID}]
+        name: '{#FLUXO}: filas em contrapressao'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].conexoes_contrapressao.first()"
+      - uuid: 304698db23c745459fb70173938af639
+        key: nifi.fluxo.fila[{#FLUXO_ID}]
+        name: '{#FLUXO}: FlowFiles em fila'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].fila_flowfiles.first()"
+      - uuid: 8926c0c67748494cb62a957c06814109
+        key: nifi.fluxo.fila_bytes[{#FLUXO_ID}]
+        name: '{#FLUXO}: bytes em fila'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: B
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].fila_bytes.first()"
+      - uuid: a7ae3d16d312485c92fcd486df947cd9
+        key: nifi.fluxo.deriva[{#FLUXO_ID}]
+        name: '{#FLUXO}: alteracoes nao versionadas'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].pgs_com_deriva.first()"
+      - uuid: d7e4f961514241b7b60e6d4ec1420f9c
+        key: nifi.fluxo.ff_in[{#FLUXO_ID}]
+        name: '{#FLUXO}: FlowFiles recebidos (5 min)'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].flowfiles_in_5min.first()"
+      - uuid: 9c6cbf1d36234dff991510614a20acb7
+        key: nifi.fluxo.ff_out[{#FLUXO_ID}]
+        name: '{#FLUXO}: FlowFiles enviados (5 min)'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].flowfiles_out_5min.first()"
+      - uuid: 167cfd2c100247fd804381211a75904d
+        key: nifi.fluxo.bytes_in[{#FLUXO_ID}]
+        name: '{#FLUXO}: bytes recebidos (5 min)'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: B
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].bytes_in_5min.first()"
+      - uuid: 3ffe03df6c954080a2a8a88daf8655ae
+        key: nifi.fluxo.bytes_out[{#FLUXO_ID}]
+        name: '{#FLUXO}: bytes enviados (5 min)'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: B
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].bytes_out_5min.first()"
+      - uuid: 271aa9c9fdbe44e380be283b6424fa79
+        key: nifi.fluxo.threads[{#FLUXO_ID}]
+        name: '{#FLUXO}: threads ativas'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: threads
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].threads_ativas.first()"
+      - uuid: c9fe3979e97e4eb1a9f0e6718c29ef5e
+        key: nifi.fluxo.tarefas_ms[{#FLUXO_ID}]
+        name: '{#FLUXO}: tempo de processamento (ms, 5 min)'
+        type: DEPENDENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: ms
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].tarefas_ms_5min.first()"
+      - uuid: dd305701038147f182dd0a351f5beab8
+        key: nifi.fluxo.lento_ms[{#FLUXO_ID}]
+        name: '{#FLUXO}: processador mais lento (ms/tarefa)'
+        type: DEPENDENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: ms
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].proc_mais_lento_ms_por_tarefa.first()"
+      - uuid: 11157c8693c149238ce9b18f6b2273d2
+        key: nifi.fluxo.lento_nome[{#FLUXO_ID}]
+        name: '{#FLUXO}: processador mais lento (nome)'
+        type: DEPENDENT
+        value_type: CHAR
+        history: 31d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].proc_mais_lento.first()"
+      - uuid: e964d54ce4de4cb48260bfdb27bed1ae
+        key: nifi.fluxo.versao[{#FLUXO_ID}]
+        name: '{#FLUXO}: versionamento'
+        type: DEPENDENT
+        value_type: CHAR
+        history: 31d
+        master_item:
+          key: nifi.fluxos.status
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - "$[?(@.id=='{#FLUXO_ID}')].versionamento.first()"
+      trigger_prototypes:
+      - uuid: e8a847074d40401db7a2a6a0896c3e03
+        expression: min(/Apache NiFi API by JS/nifi.fluxo.parados[{#FLUXO_ID}],2m)>0 and {$NIFI.DEVE_RODAR:"{#FLUXO_ID}"}=1
+        name: '{#FLUXO}: processador parado'
+        priority: HIGH
+        description: 'No fluxo {#FLUXO} ({#FLUXO_ID}) ha processadores STOPPED e ele
+          esta marcado para rodar ({$NIFI.DEVE_RODAR:"{#FLUXO_ID}"}=1). Detecta parados
+          dentro de subgrupos (TO-BE 1.3).'
+        manual_close: 'YES'
+        tags:
+        - tag: fluxo
+          value: '{#FLUXO}'
+        - tag: scope
+          value: availability
+      - uuid: ae6ebe1b998b44618c9535c7a2b54ed1
+        expression: min(/Apache NiFi API by JS/nifi.fluxo.invalidos[{#FLUXO_ID}],2m)>0 and {$NIFI.DEVE_RODAR:"{#FLUXO_ID}"}=1
+        name: '{#FLUXO}: processador invalido'
+        priority: HIGH
+        description: No fluxo {#FLUXO} ha processadores INVALID (portas de saida sem
+          conexao sao excluidas do calculo para nao gerar falso positivo).
+        manual_close: 'YES'
+        tags:
+        - tag: fluxo
+          value: '{#FLUXO}'
+        - tag: scope
+          value: availability
+      - uuid: 0e9e9cb401324a67946b860d5eb63c0d
+        expression: min(/Apache NiFi API by JS/nifi.fluxo.fila_uso[{#FLUXO_ID}],5m)>=80
+        name: '{#FLUXO}: fila acima de 80%'
+        priority: WARNING
+        description: A maior fila do fluxo {#FLUXO} (inclusive subgrupos) esta a 80%
+          ou mais do limite de contrapressao (Ref. Arq. 7.4).
+        manual_close: 'YES'
+        tags:
+        - tag: fluxo
+          value: '{#FLUXO}'
+        - tag: scope
+          value: performance
+      - uuid: c00b7054668d4224b8f3faf73f1a46d9
+        expression: min(/Apache NiFi API by JS/nifi.fluxo.contrapressao[{#FLUXO_ID}],5m)>0
+        name: '{#FLUXO}: fila em contrapressao'
+        priority: HIGH
+        description: Ha fila (conexão) no fluxo {#FLUXO} em 100% do back pressure
+          — o NiFi esta pausando o upstream.
+        manual_close: 'YES'
+        tags:
+        - tag: fluxo
+          value: '{#FLUXO}'
+        - tag: scope
+          value: performance
+      - uuid: 349c3db6ce9b404c9163c2a16fa821b1
+        expression: last(/Apache NiFi API by JS/nifi.fluxo.deriva[{#FLUXO_ID}])>0
+        name: '{#FLUXO}: alteracao nao versionada'
+        priority: INFO
+        description: Process groups do fluxo {#FLUXO} com versao local modificada
+          em relacao ao registry (versionedFlowState != UP_TO_DATE).
+        manual_close: 'YES'
+        tags:
+        - tag: fluxo
+          value: '{#FLUXO}'
+        - tag: scope
+          value: notice
+      lld_macro_paths:
+      - lld_macro: '{#FLUXO_ID}'
+        path: $.id
+      - lld_macro: '{#FLUXO}'
+        path: $.nome
+      - lld_macro: '{#PROFUNDIDADE}'
+        path: $.profundidade
+    tags:
+    - tag: class
+      value: software
+    - tag: target
+      value: nifi
+    - tag: target
+      value: dataflow
+    valuemaps:
+    - uuid: b59c4efeed134ff3bfe1bcbc79a52fc8
+      name: NiFi API status
+      mappings:
+      - value: ok
+        newvalue: Servico OK
+      - value: down
+        newvalue: Servico DOWN
+    vendor:
+      name: Internal
+      version: '1.0'
+  - uuid: d9239f5ca8d54ae7820f4b051b95c26a
+    template: Apache NiFi API by JS Cluster Resources
+    name: Apache NiFi API by JS Cluster Resources
+    description: 'Coleta de recursos do cluster NiFi:
+
+      - JVM: heap usado/max, % de heap, GC time %, threads, uptime
+
+      - Storage: espaco livre/usado por repository (flowfile/content/provenance)
+
+      - Cluster: nodes, eleicao de lider, total de threads
+
+      '
+    groups:
+    - name: Templates
+    items:
+    - uuid: d66266c86080477e902ef27193b27375
+      key: nifi.jvm.raw
+      name: 'NiFi JVM: Status (raw)'
+      type: HTTP_AGENT
+      value_type: TEXT
+      history: 1d
+      trends: '0'
+      request_method: GET
+      url: '{$NIFI.URL}/system-diagnostics'
+      timeout: '{$NIFI.TIMEOUT}'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var body = JSON.parse(value);
+
+          return JSON.stringify(body.systemDiagnostics.aggregateSnapshot);
+
+          '
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+    - uuid: a0198e3df6284f4ea2e04bc441308d97
+      key: nifi.jvm.heap_used
+      name: 'NiFi JVM: Heap usado'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: B
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var b = JSON.parse(value);
+
+          return parseInt(b.usedHeapBytes, 10) || 0;
+
+          '
+    - uuid: b0f0ea4cf01e4abfa32afef13085ad4b
+      key: nifi.jvm.heap_max
+      name: 'NiFi JVM: Heap maximo'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: B
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var b = JSON.parse(value);
+
+          return parseInt(b.maxHeapBytes, 10) || 0;
+
+          '
+    - uuid: b97f4927dd5840b389c7679ecea42347
+      key: nifi.jvm.heap_pct
+      name: 'NiFi JVM: Heap %'
+      type: DEPENDENT
+      value_type: FLOAT
+      history: 31d
+      trends: 400d
+      units: '%'
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
+        parameters:
+        - 'var b = JSON.parse(value);
+
+          var used = parseInt(b.usedHeapBytes, 10) || 0;
+
+          var max = parseInt(b.maxHeapBytes, 10) || 0;
+
+          if (max <= 0) { return 0; }
+
+          return Math.round(100 * used / max * 100) / 100;
+
+          '
+      triggers:
+      - uuid: e07ea00a340f493fb71e4efb2156259e
+        expression: min(/Apache NiFi API by JS Cluster Resources/nifi.jvm.heap_pct,5m)>{$NIFI.HEAP_PCT}
+        name: 'NiFi JVM: heap > {$NIFI.HEAP_PCT}%'
+        priority: WARNING
+        description: Uso de heap da JVM do NiFi acima de {$NIFI.HEAP_PCT}%.
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: performance
+    - uuid: da9075df542f491e814920d2d041f62f
+      key: nifi.jvm.uptime
+      name: 'NiFi JVM: Uptime'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: s
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var b = JSON.parse(value);
+
+          var u = String(b.uptime || ''00:00:00.000'');
+
+          var p = u.split('':'');
+
+          var s = parseFloat(p[0]) * 3600 + parseFloat(p[1]) * 60 + parseFloat(p[2]
+          || 0);
+
+          return Math.floor(s);
+
+          '
+    - uuid: 7395837cffcd4dfda0ef0cc386cf628e
+      key: nifi.jvm.gc_pct
+      name: 'NiFi JVM: Tempo em GC (%)'
+      type: DEPENDENT
+      value_type: FLOAT
+      history: 31d
+      trends: 400d
+      units: '%'
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
+        parameters:
+        - |
+          var b = JSON.parse(value);
+          var total = 0;
+          (b.garbageCollection || []).forEach(function (g) { total += Number(g.collectionMillis) || 0; });
+          return total;
+      - type: CHANGE_PER_SECOND
+      - type: MULTIPLIER
+        parameters:
+        - '0.1'
+    - uuid: 5476f171c19144c7b71ac9eb48d2c9a6
+      key: nifi.cluster.nodes
+      name: 'NiFi Cluster: Nodes'
+      status: DISABLED
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'return 1;
+
+          '
+      description: 'DESATIVADO (TO-BE DBT-6131): placeholder que devolvia 1 fixo,
+        sem valor real. Nao excluir.'
+    - uuid: 808cb868edfa416887ce08216b7c469a
+      key: nifi.cluster.nodes_connected
+      name: 'NiFi Cluster: Nodes conectados'
+      status: DISABLED
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        error_handler: DISCARD_VALUE
+        parameters:
+        - 'return 1;
+
+          '
+      description: 'DESATIVADO (TO-BE DBT-6131): placeholder que devolvia 1 fixo.
+        Nao excluir.'
+    - uuid: 407111bc4e4045deb1f88692427af4c4
+      key: nifi.storage.raw
+      name: 'NiFi Storage: Raw (repositories)'
+      type: HTTP_AGENT
+      value_type: TEXT
+      history: 1d
+      trends: '0'
+      request_method: GET
+      url: '{$NIFI.URL}/system-diagnostics'
+      timeout: '{$NIFI.TIMEOUT}'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var body = JSON.parse(value);
+
+          return JSON.stringify(body.systemDiagnostics.aggregateSnapshot);
+
+          '
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+    - uuid: 56fbc53931964ed2bc145057ad72ef24
+      key: nifi.storage.used_pct
+      name: 'NiFi Storage: Uso maximo dos repositorios (%)'
+      type: DEPENDENT
+      value_type: FLOAT
+      history: 31d
+      trends: 400d
+      units: '%'
+      master_item:
+        key: nifi.storage.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          var b = JSON.parse(value);
+          var repos = [].concat(
+            b.flowFileRepositoryStorageUsage ? [b.flowFileRepositoryStorageUsage] : [],
+            b.contentRepositoryStorageUsage || [],
+            b.provenanceRepositoryStorageUsage || []);
+          var max = 0;
+          repos.forEach(function (r) {
+            var u = parseFloat(String(r.utilization || '0').replace('%', '').replace(',', '.'));
+            if (r.totalSpaceBytes > 0) { u = 100 * r.usedSpaceBytes / r.totalSpaceBytes; }
+            if (!isNaN(u) && u > max) { max = u; }
+          });
+          return Math.round(max * 100) / 100;
+      triggers:
+      - uuid: 488c4aaf8d8d48e5b3aabc49eab0c156
+        expression: min(/Apache NiFi API by JS Cluster Resources/nifi.storage.used_pct,10m)>={$NIFI.REPO_PCT.HIGH}
+        name: 'NiFi Storage: repositorio acima de {$NIFI.REPO_PCT.HIGH}%'
+        priority: HIGH
+        description: 'Repositorio (flowfile/content/provenance) acima de {$NIFI.REPO_PCT.HIGH}%
+          — risco de esgotar disco dos repositories (TO-BE 1.1).'
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: capacity
+      - uuid: 763c58440d45400f86e393a3b9915e5f
+        expression: min(/Apache NiFi API by JS Cluster Resources/nifi.storage.used_pct,10m)>={$NIFI.REPO_PCT.WARN}
+        name: 'NiFi Storage: repositorio acima de {$NIFI.REPO_PCT.WARN}%'
+        priority: WARNING
+        description: 'Repositorio (flowfile/content/provenance) acima de {$NIFI.REPO_PCT.WARN}%
+          (TO-BE 1.1). Dependente da trigger High para nao duplicar notificacoes.'
+        manual_close: 'YES'
+        dependencies:
+        - name: 'NiFi Storage: repositorio acima de {$NIFI.REPO_PCT.HIGH}%'
+          expression: min(/Apache NiFi API by JS Cluster Resources/nifi.storage.used_pct,10m)>={$NIFI.REPO_PCT.HIGH}
+        tags:
+        - tag: scope
+          value: capacity
+    - uuid: 4cd6fb8345e944808d45d7e48cda4b3b
+      key: nifi.cluster.threads_total
+      name: 'NiFi Cluster: Threads totais'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: threads
+      master_item:
+        key: nifi.jvm.raw
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |
+          return parseInt(JSON.parse(value).totalThreads, 10) || 0;
+      description: 'TO-BE (alteracao 4): item dependente do "NiFi JVM: Status (raw)"
+        lendo totalThreads do aggregateSnapshot de /system-diagnostics — o campo totalThreads
+        nao existe em /flow/status.'
+      triggers:
+      - uuid: 5d2a76e5512446a5ac60fa485534b31c
+        expression: min(/Apache NiFi API by JS Cluster Resources/nifi.cluster.threads_total,10m)>{$NIFI.THREADS_MAX}
+          and {$NIFI.THREADS_MAX}>0
+        name: 'NiFi: threads ativas acima do limite'
+        priority: WARNING
+        description: Numero de threads ativas excede {$NIFI.THREADS_MAX} (possivel
+          backlog).
+        manual_close: 'YES'
+        tags:
+        - tag: scope
+          value: performance
+    vendor:
+      name: Internal
+      version: '1.0'
+  - uuid: 8b391308d1e74d1d979b1e740dab6231
+    template: Apache NiFi API by JS Queues
+    name: Apache NiFi API by JS Queues
+    description: 'Coleta de filas (connections) por Process Group descoberto:
+
+      - Objetos e bytes em fila
+
+      - % do back pressure (objetos e bytes)
+
+      - Idade do dado mais antigo na fila (s)
+
+      '
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: 11691297acdd43bdac126c83b5a51be2
+      key: nifi.discovery.queues
+      name: Descoberta de filas por PG
+      status: DISABLED
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}'
+      timeout: '{$NIFI.TIMEOUT}'
+      delay: 5m
+      lifetime: 30d
+      description: 'DESATIVADA (TO-BE DBT-6131): substituida pela "Descoberta de
+        Fluxos" (nifi.fluxo.fila_uso / nifi.fluxo.contrapressao / nifi.fluxo.fila[{#FLUXO_ID}]...),
+        que ja acumula filas do subgrupo inteiro. Reativar so se preciso; nao excluir.'
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nvar conns = (body.processGroupFlow && body.processGroupFlow.flow\
+          \ && body.processGroupFlow.flow.connections)\n  ? body.processGroupFlow.flow.connections\
+          \ : [];\nvar rows = [];\nconns.forEach(function (c) {\n  if (!c.component)\
+          \ { return; }\n  rows.push({\n    '{#PGID}': c.component.parentProcessGroupId\
+          \ || '',\n    '{#PGNAME}': c.component.parentProcessGroupId || '',\n   \
+          \ '{#CONNID}': c.component.id,\n    '{#CONNNAME}': c.component.name || c.component.id,\n\
+          \    '{#SRC}': c.component.source && c.component.source.name ? c.component.source.name\
+          \ : '',\n    '{#DEST}': c.component.destination && c.component.destination.name\
+          \ ? c.component.destination.name : ''\n  });\n});\nreturn JSON.stringify({\
+          \ 'data': rows });\n"
+      item_prototypes:
+      - uuid: 959405a3d4774c4c956f672c1b016af2
+        key: nifi.queue.raw[{#CONNID}]
+        name: 'Fila {#CONNNAME}: Status (raw)'
+        type: HTTP_AGENT
+        value_type: TEXT
+        history: 1d
+        trends: '0'
+        request_method: GET
+        url: '{$NIFI.URL}/connections/{#CONNID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var body = JSON.parse(value);
+
+            return JSON.stringify(body.connection || body);
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 6647c9e68cbf4edf9e7609bab2cc3a34
+        key: nifi.queue.objects[{#CONNID}]
+        name: 'Fila {#CONNNAME}: Objetos em fila'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        request_method: GET
+        url: '{$NIFI.URL}/connections/{#CONNID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var b = JSON.parse(value);
+
+            var q = (b.queueSummary || b);
+
+            return parseInt((q.queueSize && q.queueSize.objectCount) || 0, 10);
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: bb09f710c54f43799591ce75e0841496
+        key: nifi.queue.bytes[{#CONNID}]
+        name: 'Fila {#CONNNAME}: Bytes em fila'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: B
+        request_method: GET
+        url: '{$NIFI.URL}/connections/{#CONNID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var b = JSON.parse(value);
+
+            var q = (b.queueSize || b);
+
+            return parseInt(q.queueSize && q.queueSize.byteCount || 0, 10);
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: ed0e2711510f4f9bacd06521a5b577b9
+        key: nifi.queue.bp_objects_pct[{#CONNID}]
+        name: 'Fila {#CONNNAME}: Back pressure objetos (%)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: '%'
+        request_method: GET
+        url: '{$NIFI.URL}/connections/{#CONNID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var b = JSON.parse(value);
+
+            var q = b.queue || b;
+
+            var obj = parseInt((q.queueSize && q.queueSize.objectCount) || 0, 10);
+
+            var bp = parseInt((q.backPressure && q.backPressure.objectThreshold) ||
+            0, 10);
+
+            if (bp <= 0) { return 0; }
+
+            return Math.round(100 * obj / bp * 100) / 100;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 3100d9d7fce447feaa55cc96485db9fe
+        key: nifi.queue.bp_bytes_pct[{#CONNID}]
+        name: 'Fila {#CONNNAME}: Back pressure bytes (%)'
+        type: HTTP_AGENT
+        value_type: FLOAT
+        history: 31d
+        trends: 400d
+        units: '%'
+        request_method: GET
+        url: '{$NIFI.URL}/connections/{#CONNID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var b = JSON.parse(value);
+
+            var q = b.queue || b;
+
+            var bytes = parseInt((q.queueSize && q.queueSize.byteCount) || 0, 10);
+
+            var bp = parseInt((q.backPressure && q.backPressure.bytesThreshold) ||
+            0, 10);
+
+            if (bp <= 0) { return 0; }
+
+            return Math.round(100 * bytes / bp * 100) / 100;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      - uuid: 391b59edaca542e4b404b36972367cc1
+        key: nifi.queue.oldest[{#CONNID}]
+        name: 'Fila {#CONNNAME}: Idade do dado mais antigo (s)'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        units: s
+        request_method: GET
+        url: '{$NIFI.URL}/connections/{#CONNID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var b = JSON.parse(value);
+
+            var q = b.queue || b;
+
+            var ts = parseInt((q.oldestFlowFileTimestamp || q.oldestFlowFileEventTimestamp
+            || 0), 10);
+
+            if (ts <= 0) { return 0; }
+
+            return Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(ts / 1000));
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      lld_macro_paths:
+      - lld_macro: '{#PGID}'
+        path: $.pgid
+      - lld_macro: '{#PGNAME}'
+        path: $.pgname
+      - lld_macro: '{#CONNID}'
+        path: $.connid
+      - lld_macro: '{#CONNNAME}'
+        path: $.connname
+      - lld_macro: '{#SRC}'
+        path: $.src
+      - lld_macro: '{#DEST}'
+        path: $.dest
+      trigger_prototypes:
+      - uuid: 47448afc846f4c84a57f3d9dd923f768
+        expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_objects_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
+        name: 'Fila {#CONNNAME}: back pressure objetos > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
+        priority: AVERAGE
+        description: Fila {#CONNNAME} (PG {#PGNAME}) proxima do back pressure por
+          objetos.
+        manual_close: 'YES'
+        tags:
+        - tag: queue
+          value: '{#CONNNAME}'
+        - tag: scope
+          value: performance
+      - uuid: 3e9bd2fc749143de80a47ed99eb1f173
+        expression: min(/Apache NiFi API by JS Queues/nifi.queue.bp_bytes_pct[{#CONNID}],10m)>{$NIFI.QUEUE_BACKPRESSURE_PCT}
+        name: 'Fila {#CONNNAME}: back pressure bytes > {$NIFI.QUEUE_BACKPRESSURE_PCT}%'
+        priority: AVERAGE
+        description: Fila {#CONNNAME} (PG {#PGNAME}) proxima do back pressure por
+          bytes.
+        manual_close: 'YES'
+        tags:
+        - tag: queue
+          value: '{#CONNNAME}'
+        - tag: scope
+          value: performance
+      - uuid: 42d337fb5aff407b9c4c99ac21a601e0
+        expression: min(/Apache NiFi API by JS Queues/nifi.queue.oldest[{#CONNID}],10m)>{$NIFI.QUEUE_AGE_MIN}
+        name: 'Fila {#CONNNAME}: dados parados'
+        priority: AVERAGE
+        description: O dado mais antigo da fila {#CONNNAME} tem mais de {$NIFI.QUEUE_AGE_MIN}
+          segundos.
+        manual_close: 'YES'
+        tags:
+        - tag: queue
+          value: '{#CONNNAME}'
+        - tag: scope
+          value: performance
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+    vendor:
+      name: Internal
+      version: '1.0'
+  - uuid: 6ea516b0c08843979f4df14685b3d4d4
+    template: Apache NiFi API by JS Counters
+    name: Apache NiFi API by JS Counters
+    description: 'Descoberta e coleta de counters do NiFi via /counters.
+
+      Permite acompanhar metricas customizadas criadas nos fluxos (UpdateCounter).
+
+      '
+    groups:
+    - name: Templates
+    discovery_rules:
+    - uuid: d7b1d9fd39844ef380a0307fe4bba15e
+      key: nifi.discovery.counters
+      name: Descoberta de counters
+      type: HTTP_AGENT
+      request_method: GET
+      url: '{$NIFI.URL}/counters'
+      timeout: '{$NIFI.TIMEOUT}'
+      delay: 5m
+      lifetime: 30d
+      description: Descobre counters registrados (filtra por {$NIFI.COUNTERS_FILTER}
+        regex).
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - "var body = JSON.parse(value);\nvar cs = (body.counters && body.counters.counters)\
+          \ ? body.counters.counters : [];\nvar rx = '{$NIFI.COUNTERS_FILTER}';\n\
+          var rows = [];\ncs.forEach(function (c) {\n  var id = (c.counter && c.counter.id)\
+          \ ? c.counter.id : c.id;\n  var nm = (c.counter && c.counter.name) ? c.counter.name\
+          \ : (c.name || id);\n  if (rx && rx.trim() !== '') {\n    var re = new RegExp(rx,\
+          \ 'i');\n    if (!re.test(nm)) { return; }\n  }\n  rows.push({ '{#COUNTERID}':\
+          \ String(id), '{#COUNTERNAME}': String(nm) });\n});\nreturn JSON.stringify({\
+          \ 'data': rows });\n"
+      item_prototypes:
+      - uuid: 50e04fcceadd4b39a91f8f3b856f33e0
+        key: nifi.counter.value[{#COUNTERNAME}]
+        name: 'Counter {#COUNTERNAME}: Valor'
+        type: HTTP_AGENT
+        value_type: UNSIGNED
+        history: 31d
+        trends: 400d
+        request_method: GET
+        url: '{$NIFI.URL}/counters/{#COUNTERID}'
+        timeout: '{$NIFI.TIMEOUT}'
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var b = JSON.parse(value);
+
+            var c = (b.counter && b.counter.value != null) ? b.counter : ((b.counter)
+            ? b.counter : null);
+
+            if (!c && b.counters && b.counters.counters && b.counters.counters[0])
+            { c = b.counters.counters[0].counter; }
+
+            var v = c && (c.value != null) ? c.value : (c && c.count != null ? c.count
+            : 0);
+
+            return parseInt(v, 10) || 0;
+
+            '
+        headers:
+        - name: Authorization
+          value: Bearer {$NIFI.TOKEN}
+      lld_macro_paths:
+      - lld_macro: '{#COUNTERID}'
+        path: $.counterid
+      - lld_macro: '{#COUNTERNAME}'
+        path: $.countername
+      headers:
+      - name: Authorization
+        value: Bearer {$NIFI.TOKEN}
+    vendor:
+      name: Internal
+      version: '1.0'
+  template_groups:
+  - name: Templates
+    uuid: b3f398dc1dd14696a6f8f5ada8021b86
