@@ -1,0 +1,987 @@
+zabbix_export:
+version: '7.4'
+templates:
+
+* uuid: 20ef1da317484076ab7ac8ca26f5e835
+  template: Apache NiFi API by JS
+  name: Apache NiFi API by JS v4
+  description: 'Template master para monitoramento do Apache NiFi via API REST (/flow,
+  /controller, /counters, /system-diagnostics).
+
+  Versao 4: Contempla correções de coleta de JVM (heap, threads, uptime, tempo em GC%)
+  e storage de repositórios (flowfile, content, provenance) com base nas diretrizes TO-BE (DBT-6131).
+
+  Coleta e processamento com JavaScript embutido (item HTTP + preprocessing JS),
+  sem agente.
+
+  Autenticacao: header "Authorization: Bearer {\$NIFI.TOKEN}" em todas as chamadas.
+  O token (JWT de \~8h) e renovado pelo playbook/cron renovar_nifi_token.'
+  groups:
+
+  * name: Templates
+    macros:
+
+  * macro: '{\$NIFI.URL}'
+    value: https://nifi.exemplo.com:8443/nifi-api
+    description: 'URL base da API REST do NiFi (sem barra final).'
+
+  * macro: '{\$NIFI.USER}'
+    value: ''
+    description: Usuario para autenticacao Basic.
+
+  * macro: '{\$NIFI.PASSWORD}'
+    type: SECRET_TEXT
+    description: Senha para autenticacao Basic.
+
+  * macro: '{\$NIFI.TOKEN}'
+    type: SECRET_TEXT
+    description: 'Token de acesso do NiFi.'
+
+  * macro: '{\$NIFI.ROOT_PG_ID}'
+    value: root
+    description: ID do Process Group raiz (ou "root").
+
+  * macro: '{\$NIFI.TIMEOUT}'
+    value: 15s
+    description: 'Timeout das requisicoes HTTP.'
+
+  * macro: '{\$NIFI.QUEUE_BACKPRESSURE_PCT}'
+    value: '80'
+    description: '% do back pressure para trigger de fila saturada.'
+
+  * macro: '{\$NIFI.QUEUE_AGE_MIN}'
+    value: '300'
+    description: Idade maxima (s) do dado mais antigo na fila.
+
+  * macro: '{\$NIFI.BULLETS_ERROR}'
+    value: '1'
+    description: Quantidade de bullets em ERROR para trigger.
+
+  * macro: '{\$NIFI.PROC_STOPPED}'
+    value: '0'
+    description: Processadores stopped/invalid tolerados antes do trigger.
+
+  * macro: '{\$NIFI.GC_PCT}'
+    value: '80'
+    description: '% de tempo em GC da JVM para trigger.'
+
+  * macro: '{\$NIFI.HEAP_PCT}'
+    value: '80'
+    description: '% de heap da JVM para trigger (TO-BE: 80).'
+
+  * macro: '{\$NIFI.REPO_PCT.WARN}'
+    value: '70'
+    description: '% de uso dos repositorios para trigger Warning (TO-BE: 70).'
+
+  * macro: '{\$NIFI.REPO_PCT.HIGH}'
+    value: '90'
+    description: '% de uso dos repositorios para trigger High (TO-BE: 90).'
+
+  * macro: '{\$NIFI.DEVE_RODAR}'
+    value: '0'
+    description: 'Padrao para fluxos descobertos ({\$NIFI.DEVE_RODAR:""}=1).'
+
+  * macro: '{\$NIFI.FLUXO.PROFUNDIDADE}'
+    value: '1'
+    description: 'Profundidade da descoberta de fluxos.'
+
+  * macro: '{\$NIFI.COUNTERS_FILTER}'
+    value: ''
+    description: Regex para filtrar counters.
+
+  * macro: '{\$NIFI.STATUS_NS_TRIGGER}'
+    value: 3m
+    description: 'Ciclos com API down antes do trigger.'
+
+  * macro: '{\$NIFI.THREADS_MAX}'
+    value: '0'
+    description: Total de threads ativas para trigger (0 = desativado).'
+    items:
+
+  * uuid: 28c9881441aa46dc8d13236a9cfb6ea5
+    key: nifi.api.status
+    name: 'NiFi API: Status do servico'
+    type: HTTP_AGENT
+    value_type: CHAR
+    history: 1d
+    trends: '0'
+    request_method: GET
+    url: '{\$NIFI.URL}/flow/status'
+    headers:
+
+    * name: Content-Type
+      value: application/json
+
+    * name: Authorization
+      value: Bearer {\$NIFI.TOKEN}
+      timeout: '{\$NIFI.TIMEOUT}'
+      preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * "var body = JSON.parse(value);\\nvar c = body.controllerStatus;\\nif (!c)
+
+        \\ { throw 'NiFi API: resposta inesperada'; }\\nreturn JSON.stringify({\\n
+
+        \\  'status': 'ok',\\n  'active_threads': c.activeThreadCount != null ? c.activeThreadCount
+
+        \\ : 0,\\n  'queued': c.flowFilesQueued != null ? c.flowFilesQueued : 0,\\n
+
+        \\  'queued_bytes': c.bytesQueued != null ? c.bytesQueued : 0,\\n  'running':
+
+        \\ c.runningCount != null ? c.runningCount : 0,\\n  'invalid': c.invalidCount
+
+        \\ != null ? c.invalidCount : 0\\n});\\n"
+        triggers:
+
+    * uuid: c924980ec265467b83e9438b69182a83
+      expression: nodata(/Apache NiFi API by JS/nifi.api.status,{\$NIFI.STATUS_NS_TRIGGER})=1
+      name: 'NiFi API: sem dados (servico indisponivel)'
+      priority: HIGH
+      description: A API do NiFi nao respondeu nos ultimos {\$NIFI.STATUS_NS_TRIGGER} minutos.
+      manual_close: 'YES'
+      tags:
+
+      * tag: scope
+        value: availability
+
+  * uuid: c9a9d88eeecf43f7bf5b299a482fb8b2
+    key: nifi.api.bullets
+    name: 'NiFi API: Bullets do UI (warnings/errors)'
+    type: HTTP_AGENT
+    value_type: TEXT
+    history: 1d
+    trends: '0'
+    request_method: GET
+    url: '{\$NIFI.URL}/flow/bulletin-board'
+    timeout: '{\$NIFI.TIMEOUT}'
+    preprocessing:
+
+    * type: JAVASCRIPT
+      error_handler: DISCARD_VALUE
+      parameters:
+
+      * |
+        var body = JSON.parse(value);
+        var lista = (body.bulletinBoard && body.bulletinBoard.bulletins) ? body.bulletinBoard.bulletins : \[\];
+        var warn = 0, err = 0, semPermissao = 0, last = '';
+        lista.forEach(function (e) {
+        if (!e.bulletin) { semPermissao++; return; }
+        var lvl = String(e.bulletin.level || '').toUpperCase();
+        if (lvl === 'WARNING' || lvl === 'WARN') { warn++; }
+        if (lvl === 'ERROR') {
+        err++;
+        if (!last) { last = (e.bulletin.sourceName || '') + ': ' + String(e.bulletin.message || '').substring(0, 200); }
+        }
+        });
+        return JSON.stringify({ warn: warn, error: err, sem_permissao: semPermissao, last_error: last });
+        headers:
+
+    * name: Authorization
+      value: Bearer {\$NIFI.TOKEN}
+
+  * uuid: 49a500a6d31f4f51bfaeb8a45a2e7c87
+    key: nifi.api.bullets.error
+    name: 'NiFi: bulletins ERROR'
+    type: DEPENDENT
+    value_type: UNSIGNED
+    history: 31d
+    trends: 400d
+    master_item:
+    key: nifi.api.bullets
+    preprocessing:
+
+    * type: JSONPATH
+      parameters:
+
+      * \$.error
+        triggers:
+
+    * uuid: ae7c1b59c69d4e6ea1ad6fcca3b8c3e9
+      expression: last(/Apache NiFi API by JS/nifi.api.bullets.error)>={\$NIFI.BULLETS_ERROR}
+      name: 'NiFi: boletins ERROR no bulletin board'
+      priority: AVERAGE
+      description: 'Existem {\$NIFI.BULLETS_ERROR} ou mais boletins de ERROR no bulletin board do NiFi.'
+      manual_close: 'YES'
+      tags:
+
+      * tag: scope
+        value: notice
+
+  * uuid: d66266c86080477e902ef27193b27375
+    key: nifi.jvm.raw
+    name: 'NiFi JVM: Status (raw)'
+    type: HTTP_AGENT
+    value_type: TEXT
+    history: 1d
+    trends: '0'
+    request_method: GET
+    url: '{\$NIFI.URL}/system-diagnostics'
+    timeout: '{\$NIFI.TIMEOUT}'
+    delay: 1m
+    preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * 'var body = JSON.parse(value);
+        return JSON.stringify(body.systemDiagnostics.aggregateSnapshot);
+        '
+        headers:
+
+    * name: Authorization
+      value: Bearer {\$NIFI.TOKEN}
+
+  * uuid: a0198e3df6284f4ea2e04bc441308d97
+    key: nifi.jvm.heap_used
+    name: 'NiFi JVM: Heap usado'
+    type: DEPENDENT
+    value_type: UNSIGNED
+    history: 31d
+    trends: 400d
+    units: B
+    master_item:
+    key: nifi.jvm.raw
+    preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * 'var b = JSON.parse(value);
+        return parseInt(b.usedHeapBytes, 10) || 0;
+        '
+
+  * uuid: b0f0ea4cf01e4abfa32afef13085ad4b
+    key: nifi.jvm.heap_max
+    name: 'NiFi JVM: Heap maximo'
+    type: DEPENDENT
+    value_type: UNSIGNED
+    history: 31d
+    trends: 400d
+    units: B
+    master_item:
+    key: nifi.jvm.raw
+    preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * 'var b = JSON.parse(value);
+        return parseInt(b.maxHeapBytes, 10) || 0;
+        '
+
+  * uuid: b97f4927dd5840b389c7679ecea42347
+    key: nifi.jvm.heap_pct
+    name: 'NiFi JVM: Heap %'
+    type: DEPENDENT
+    value_type: FLOAT
+    history: 31d
+    trends: 400d
+    units: '%'
+    master_item:
+    key: nifi.jvm.raw
+    preprocessing:
+
+    * type: JAVASCRIPT
+      error_handler: DISCARD_VALUE
+      parameters:
+
+      * 'var b = JSON.parse(value);
+        var used = parseInt(b.usedHeapBytes, 10) || 0;
+        var max = parseInt(b.maxHeapBytes, 10) || 0;
+        if (max <= 0) { return 0; }
+        return Math.round(10000 \* used / max) / 100;
+        '
+        triggers:
+
+    * uuid: e07ea00a340f493fb71e4efb2156259e
+      expression: min(/Apache NiFi API by JS/nifi.jvm.heap_pct,5m)>{\$NIFI.HEAP_PCT}
+      name: 'NiFi JVM: heap > {\$NIFI.HEAP_PCT}%'
+      priority: WARNING
+      description: Uso de heap da JVM do NiFi acima de {\$NIFI.HEAP_PCT}%.
+      manual_close: 'YES'
+      tags:
+
+      * tag: scope
+        value: performance
+
+  * uuid: 4cd6fb8345e944808d45d7e48cda4b3b
+    key: nifi.cluster.threads_total
+    name: 'NiFi Cluster: Threads totais'
+    type: DEPENDENT
+    value_type: UNSIGNED
+    history: 31d
+    trends: 400d
+    units: threads
+    master_item:
+    key: nifi.jvm.raw
+    preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * |
+        return parseInt(JSON.parse(value).totalThreads, 10) || 0;
+        triggers:
+
+    * uuid: 5d2a76e5512446a5ac60fa485534b31c
+      expression: min(/Apache NiFi API by JS/nifi.cluster.threads_total,10m)>{\$NIFI.THREADS_MAX} and {$NIFI.THREADS_MAX}>0
+      name: 'NiFi: threads ativas acima do limite'
+      priority: WARNING
+      description: Numero de threads ativas excede {\$NIFI.THREADS_MAX}.
+      manual_close: 'YES'
+      tags:
+
+      * tag: scope
+        value: performance
+
+  * uuid: 7395837cffcd4dfda0ef0cc386cf628e
+    key: nifi.jvm.gc_pct
+    name: 'NiFi JVM: Tempo em GC (%)'
+    type: DEPENDENT
+    value_type: FLOAT
+    history: 31d
+    trends: 400d
+    units: '%'
+    master_item:
+    key: nifi.jvm.raw
+    preprocessing:
+
+    * type: JAVASCRIPT
+      error_handler: DISCARD_VALUE
+      parameters:
+
+      * |
+        var b = JSON.parse(value);
+        var total = 0;
+        (b.garbageCollection || \[\]).forEach(function (g) { total += Number(g.collectionMillis) || 0; });
+        return total;
+
+    * type: CHANGE_PER_SECOND
+
+    * type: MULTIPLIER
+      parameters:
+
+      * '0.1'
+
+  * uuid: 56fbc53931964ed2bc145057ad72ef24
+    key: nifi.storage.used_pct
+    name: 'NiFi Storage: Uso maximo dos repositorios (%)'
+    type: DEPENDENT
+    value_type: FLOAT
+    history: 31d
+    trends: 400d
+    units: '%'
+    master_item:
+    key: nifi.jvm.raw
+    preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * |
+        var b = JSON.parse(value);
+        var repos = \[\].concat(
+        b.flowFileRepositoryStorageUsage ? \[b.flowFileRepositoryStorageUsage\] : \[\],
+        b.contentRepositoryStorageUsage || \[\],
+        b.provenanceRepositoryStorageUsage || \[\]);
+        var max = 0;
+        repos.forEach(function (r) {
+        var u = parseFloat(String(r.utilization || '0').replace('%', '').replace(',', '.'));
+        if (r.totalSpaceBytes > 0) { u = 100 \* r.usedSpaceBytes / r.totalSpaceBytes; }
+        if (!isNaN(u) && u > max) { max = u; }
+        });
+        return Math.round(max \* 100) / 100;
+        triggers:
+
+    * uuid: 488c4aaf8d8d48e5b3aabc49eab0c156
+      expression: min(/Apache NiFi API by JS/nifi.storage.used_pct,10m)>={\$NIFI.REPO_PCT.HIGH}
+      name: 'NiFi Storage: repositorio acima de {\$NIFI.REPO_PCT.HIGH}%'
+      priority: HIGH
+      description: Repositorio acima de {\$NIFI.REPO_PCT.HIGH}% — risco de esgotar disco.
+      manual_close: 'YES'
+      tags:
+
+      * tag: scope
+        value: capacity
+
+    * uuid: 763c58440d45400f86e393a3b9915e5f
+      expression: min(/Apache NiFi API by JS/nifi.storage.used_pct,10m)>={\$NIFI.REPO_PCT.WARN}
+      name: 'NiFi Storage: repositorio acima de {\$NIFI.REPO_PCT.WARN}%'
+      priority: WARNING
+      description: Repositorio acima de {\$NIFI.REPO_PCT.WARN}%.
+      manual_close: 'YES'
+      dependencies:
+
+      * name: 'NiFi Storage: repositorio acima de {\$NIFI.REPO_PCT.HIGH}%'
+        expression: min(/Apache NiFi API by JS/nifi.storage.used_pct,10m)>={\$NIFI.REPO_PCT.HIGH}
+        tags:
+
+      * tag: scope
+        value: capacity
+
+  * uuid: 6ad541e319a14677878807b7dfd08a1e
+    key: nifi.fluxos.status
+    name: 'NiFi: status dos fluxos'
+    type: HTTP_AGENT
+    value_type: TEXT
+    history: 1d
+    trends: '0'
+    delay: 1m
+    request_method: GET
+    url: '{\$NIFI.URL}/flow/process-groups/{$NIFI.ROOT_PG_ID}/status?recursive=true'
+    timeout: 60s
+    preprocessing:
+
+    * type: JAVASCRIPT
+      parameters:
+
+      * |
+        var prof = parseInt('{\$NIFI.FLUXO.PROFUNDIDADE}', 10);
+        if (isNaN(prof) || prof < 0) { prof = 1; }
+
+        var entity = JSON.parse(value);
+        var root = entity && (entity.processGroupStatus || entity);
+        if (!root || (!root.id && !root.aggregateSnapshot)) { throw 'NiFi: resposta inesperada de /flow/process-groups/\*/status'; }
+
+        function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+        function flt(v) { var f = parseFloat(v); return isNaN(f) ? 0 : f; }
+        function rnd2(x) { return Math.round(x \* 100) / 100; }
+        function desempacota(e) {
+        if (!e) { return {}; }
+        return e.processorStatusSnapshot || e.connectionStatusSnapshot || e.processGroupStatusSnapshot || e.remoteProcessGroupStatusSnapshot || e;
+        }
+        function snap(d) { return (d && (d.aggregateSnapshot || d)) || {}; }
+
+        function bytesDe(txt) {
+        var m = String(txt || '').match(/(\[\\d.,\]+)\\s\*(B|KB|MB|GB|TB)/i);
+        if (!m) { return 0; }
+        var f = parseFloat(m\[1\].replace(',', '.'));
+        if (isNaN(f)) { return 0; }
+        var mult = { B: 1, KB: 1024, MB: 1048576, GB: 1073741824, TB: 1099511627776 };
+        return Math.round(f \* mult\[m\[2\].toUpperCase()\]);
+        }
+
+        function usoFila(c) {
+        var qO = c.flowFilesQueued != null ? num(c.flowFilesQueued)
+        : (c.queuedCount != null ? num(c.queuedCount)
+        : (typeof c.queued === 'number' ? c.queued : num(String(c.queued || '').split(' ')\[0\])));
+        var qB = c.bytesQueued != null ? num(c.bytesQueued)
+        : (c.queuedBytes != null ? num(c.queuedBytes)
+        : (typeof c.queuedSize === 'number' ? num(c.queuedSize) : bytesDe(c.queued)));
+        var thO = num(c.backPressureObjectThreshold);
+        var thB = num(c.backPressureBytesThreshold);
+        var u1 = c.percentUseCount != null ? flt(c.percentUseCount) : (thO > 0 ? 100 \* qO / thO : 0);
+        var u2 = c.percentUseBytes != null ? flt(c.percentUseBytes) : (thB > 0 ? 100 \* qB / thB : 0);
+        return { pct: Math.max(u1, u2), qO: qO, qB: qB };
+        }
+
+        function msDe(p) {
+        if (p.taskDurationNanos != null) { return num(p.taskDurationNanos) / 1000000; }
+        if (p.tasksDurationNanos != null) { return num(p.tasksDurationNanos) / 1000000; }
+        if (p.taskDurationMillis != null) { return num(p.taskDurationMillis); }
+        if (p.taskMillis != null) { return num(p.taskMillis); }
+        return 0;
+        }
+        function tasksDe(p) {
+        if (p.taskCount != null) { return num(p.taskCount); }
+        if (p.invoked != null) { return num(p.invoked); }
+        return 0;
+        }
+
+        var rows = \[\];
+
+        function coletar(dto, depth) {
+        var s = snap(dto);
+        var acc = {
+        id: dto && dto.id != null ? String(dto.id) : String(s.id || ''),
+        nome: String((dto && dto.name) || s.name || ''),
+        profundidade: depth,
+        stopped: 0,
+        invalid: 0,
+        max_uso_fila_pct: 0,
+        conexoes_contrapressao: 0,
+        fila_flowfiles: 0,
+        fila_bytes: 0,
+        pgs_com_deriva: 0,
+        flowfiles_in_5min: 0,
+        flowfiles_out_5min: 0,
+        bytes_in_5min: 0,
+        bytes_out_5min: 0,
+        threads_ativas: 0,
+        tarefas_ms_5min: 0,
+        proc_mais_lento: '',
+        proc_mais_lento_ms_por_tarefa: 0,
+        versionamento: ''
+        };
+
+        var estado = String(s.versionedFlowState || (dto && dto.versionedFlowState) || '');
+        if (estado !== '' && estado.toUpperCase() !== 'UP_TO_DATE') { acc.pgs_com_deriva = 1; }
+        acc.versionamento = estado;
+
+        (s.processorStatusSnapshots || \[\]).forEach(function (e) {
+        var p = desempacota(e);
+        var st = String(p.runStatus || p.state || '').toUpperCase();
+        if (st === 'STOPPED' || st === 'STOPPING') { acc.stopped++; }
+        if (st === 'INVALID') { acc.invalid++; }
+        acc.threads_ativas += num(p.activeThreadCount);
+        var ms = msDe(p);
+        var tz = tasksDe(p);
+        acc.tarefas_ms_5min += ms;
+        if (tz > 0 && ms > 0 && (ms / tz) > acc.proc_mais_lento_ms_por_tarefa) {
+        acc.proc_mais_lento_ms_por_tarefa = ms / tz;
+        acc.proc_mais_lento = String(p.name || p.id || '');
+        }
+        });
+
+        (s.connectionStatusSnapshots || \[\]).forEach(function (e) {
+        var c = desempacota(e);
+        var u = usoFila(c);
+        acc.fila_flowfiles += u.qO;
+        acc.fila_bytes += u.qB;
+        if (u.pct > acc.max_uso_fila_pct) { acc.max_uso_fila_pct = u.pct; }
+        if (u.pct >= 100) { acc.conexoes_contrapressao++; }
+        });
+
+        var temQ = (s.flowFilesQueued != null || s.queuedCount != null);
+        var temQB = (s.bytesQueued != null);
+        var temThr = (s.activeThreadCount != null);
+        var temNanos = (s.processingNanos != null);
+
+        acc.flowfiles_in_5min = num(s.flowFilesIn);
+        acc.flowfiles_out_5min = num(s.flowFilesOut);
+        acc.bytes_in_5min = num(s.bytesIn);
+        acc.bytes_out_5min = num(s.bytesOut);
+        if (temQ) { acc.fila_flowfiles = num(s.flowFilesQueued != null ? s.flowFilesQueued : s.queuedCount); }
+        if (temQB) { acc.fila_bytes = num(s.bytesQueued); }
+        if (temThr) { acc.threads_ativas = num(s.activeThreadCount) + num(s.statelessActiveThreadCount); }
+        if (temNanos) { acc.tarefas_ms_5min = num(s.processingNanos) / 1000000; }
+
+        (s.processGroupStatusSnapshots || s.groupStatusSnapshots || \[\]).forEach(function (e) {
+        var sub = coletar(desempacota(e), depth + 1);
+        acc.stopped += sub.stopped;
+        acc.invalid += sub.invalid;
+        acc.max_uso_fila_pct = Math.max(acc.max_uso_fila_pct, sub.max_uso_fila_pct);
+        acc.conexoes_contrapressao += sub.conexoes_contrapressao;
+        if (!temQ) { acc.fila_flowfiles += sub.fila_flowfiles; }
+        if (!temQB) { acc.fila_bytes += sub.fila_bytes; }
+        acc.pgs_com_deriva += sub.pgs_com_deriva;
+        if (!temThr) { acc.threads_ativas += sub.threads_ativas; }
+        if (!temNanos) { acc.tarefas_ms_5min += sub.tarefas_ms_5min; }
+        if (sub.proc_mais_lento_ms_por_tarefa > acc.proc_mais_lento_ms_por_tarefa) {
+        acc.proc_mais_lento_ms_por_tarefa = sub.proc_mais_lento_ms_por_tarefa;
+        acc.proc_mais_lento = sub.proc_mais_lento;
+        }
+        });
+
+        if (prof === 0 || depth === prof) {
+        rows.push({
+        id: acc.id,
+        nome: acc.nome,
+        profundidade: depth,
+        stopped: acc.stopped,
+        invalid: acc.invalid,
+        max_uso_fila_pct: rnd2(acc.max_uso_fila_pct),
+        conexoes_contrapressao: acc.conexoes_contrapressao,
+        fila_flowfiles: acc.fila_flowfiles,
+        fila_bytes: acc.fila_bytes,
+        pgs_com_deriva: acc.pgs_com_deriva,
+        flowfiles_in_5min: acc.flowfiles_in_5min,
+        flowfiles_out_5min: acc.flowfiles_out_5min,
+        bytes_in_5min: acc.bytes_in_5min,
+        bytes_out_5min: acc.bytes_out_5min,
+        threads_ativas: acc.threads_ativas,
+        tarefas_ms_5min: Math.round(acc.tarefas_ms_5min),
+        proc_mais_lento: acc.proc_mais_lento,
+        proc_mais_lento_ms_por_tarefa: rnd2(acc.proc_mais_lento_ms_por_tarefa),
+        versionamento: acc.versionamento
+        });
+        }
+        return acc;
+        }
+
+        coletar(root, 0);
+        return JSON.stringify(rows);
+        headers:
+
+    * name: Authorization
+      value: Bearer {\$NIFI.TOKEN}
+      triggers:
+
+    * uuid: 2761bae8d8b3448ab6773498048eaca8
+      expression: nodata(/Apache NiFi API by JS/nifi.fluxos.status,5m)=1
+      name: 'NiFi: coleta dos fluxos parou'
+      priority: HIGH
+      description: O item mestre da descoberta de fluxos nao respondeu em 5m.
+      manual_close: 'YES'
+      tags:
+
+      * tag: scope
+        value: availability
+        discovery_rules:
+
+  * uuid: 5b0f4630a052425ca5db80a9ae4800a8
+    key: nifi.fluxos.descoberta
+    name: Descoberta de Fluxos (TO-BE)
+    type: DEPENDENT
+    master_item:
+    key: nifi.fluxos.status
+    lifetime: 30d
+    description: 'Descobre um fluxo por Process Group na profundidade {\$NIFI.FLUXO.PROFUNDIDADE}.'
+    item_prototypes:
+
+    * uuid: 4dcaeb42eb6349b28e1b0d571a1cbf5b
+      key: nifi.fluxo.parados\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: processadores parados'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].stopped.first()"
+
+    * uuid: 03e282e7959b4c2fbc5a692910775a31
+      key: nifi.fluxo.invalidos\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: processadores invalidos'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].invalid.first()"
+
+    * uuid: 98231450149f4aa084361f6b03c5fc93
+      key: nifi.fluxo.fila_uso\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: maior uso de fila (%)'
+      type: DEPENDENT
+      value_type: FLOAT
+      history: 31d
+      trends: 400d
+      units: '%'
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].max_uso_fila_pct.first()"
+
+    * uuid: 2bacdc1524614cd583a89920442d9a3f
+      key: nifi.fluxo.contrapressao\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: filas em contrapressao'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].conexoes_contrapressao.first()"
+
+    * uuid: 304698db23c745459fb70173938af639
+      key: nifi.fluxo.fila\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: FlowFiles em fila'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].fila_flowfiles.first()"
+
+    * uuid: 8926c0c67748494cb62a957c06814109
+      key: nifi.fluxo.fila_bytes\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: bytes em fila'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: B
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].fila_bytes.first()"
+
+    * uuid: a7ae3d16d312485c92fcd486df947cd9
+      key: nifi.fluxo.deriva\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: alteracoes nao versionadas'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].pgs_com_deriva.first()"
+
+    * uuid: d7e4f961514241b7b60e6d4ec1420f9c
+      key: nifi.fluxo.ff_in\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: FlowFiles recebidos (5 min)'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].flowfiles_in_5min.first()"
+
+    * uuid: 9c6cbf1d36234dff991510614a20acb7
+      key: nifi.fluxo.ff_out\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: FlowFiles enviados (5 min)'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].flowfiles_out_5min.first()"
+
+    * uuid: 167cfd2c100247fd804381211a75904d
+      key: nifi.fluxo.bytes_in\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: bytes recebidos (5 min)'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: B
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].bytes_in_5min.first()"
+
+    * uuid: 3ffe03df6c954080a2a8a88daf8655ae
+      key: nifi.fluxo.bytes_out\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: bytes enviados (5 min)'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: B
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].bytes_out_5min.first()"
+
+    * uuid: 271aa9c9fdbe44e380be283b6424fa79
+      key: nifi.fluxo.threads\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: threads ativas'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: threads
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].threads_ativas.first()"
+
+    * uuid: c9fe3979e97e4eb1a9f0e6718c29ef5e
+      key: nifi.fluxo.tarefas_ms\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: tempo de processamento (ms, 5 min)'
+      type: DEPENDENT
+      value_type: UNSIGNED
+      history: 31d
+      trends: 400d
+      units: ms
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].tarefas_ms_5min.first()"
+
+    * uuid: dd305701038147f182dd0a351f5beab8
+      key: nifi.fluxo.lento_ms\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: processador mais lento (ms/tarefa)'
+      type: DEPENDENT
+      value_type: FLOAT
+      history: 31d
+      trends: 400d
+      units: ms
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].proc_mais_lento_ms_por_tarefa.first()"
+
+    * uuid: 11157c8693c149238ce9b18f6b2273d2
+      key: nifi.fluxo.lento_nome\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: processador mais lento (nome)'
+      type: DEPENDENT
+      value_type: CHAR
+      history: 31d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].proc_mais_lento.first()"
+
+    * uuid: e964d54ce4de4cb48260bfdb27bed1ae
+      key: nifi.fluxo.versao\[{#FLUXO_ID}\]
+      name: '{#FLUXO}: versionamento'
+      type: DEPENDENT
+      value_type: CHAR
+      history: 31d
+      master_item:
+      key: nifi.fluxos.status
+      preprocessing:
+
+      * type: JSONPATH
+        parameters:
+
+        * "\$\[?(@.id=='{#FLUXO_ID}')\].versionamento.first()"
+          trigger_prototypes:
+
+    * uuid: e8a847074d40401db7a2a6a0896c3e03
+      expression: min(/Apache NiFi API by JS/nifi.fluxo.parados\[{#FLUXO_ID}\],2m)>0 and {\$NIFI.DEVE_RODAR:"{#FLUXO_ID}"}=1
+      name: '{#FLUXO}: processador parado'
+      priority: HIGH
+      description: No fluxo ha processadores STOPPED e ele esta marcado para rodar.
+      manual_close: 'YES'
+      tags:
+
+      * tag: fluxo
+        value: '{#FLUXO}'
+
+      * tag: scope
+        value: availability
+
+    * uuid: ae6ebe1b998b44618c9535c7a2b54ed1
+      expression: min(/Apache NiFi API by JS/nifi.fluxo.invalidos\[{#FLUXO_ID}\],2m)>0 and {\$NIFI.DEVE_RODAR:"{#FLUXO_ID}"}=1
+      name: '{#FLUXO}: processador invalido'
+      priority: HIGH
+      description: No fluxo ha processadores INVALID.
+      manual_close: 'YES'
+      tags:
+
+      * tag: fluxo
+        value: '{#FLUXO}'
+
+      * tag: scope
+        value: availability
+
+    * uuid: 0e9e9cb401324a67946b860d5eb63c0d
+      expression: min(/Apache NiFi API by JS/nifi.fluxo.fila_uso\[{#FLUXO_ID}\],5m)>=80
+      name: '{#FLUXO}: fila acima de 80%'
+      priority: WARNING
+      description: A maior fila do fluxo esta a 80% ou mais do limite de contrapressao.
+      manual_close: 'YES'
+      tags:
+
+      * tag: fluxo
+        value: '{#FLUXO}'
+
+      * tag: scope
+        value: performance
+
+    * uuid: c00b7054668d4224b8f3faf73f1a46d9
+      expression: min(/Apache NiFi API by JS/nifi.fluxo.contrapressao\[{#FLUXO_ID}\],5m)>0
+      name: '{#FLUXO}: fila em contrapressao'
+      priority: HIGH
+      description: Ha fila no fluxo em 100% do back pressure.
+      manual_close: 'YES'
+      tags:
+
+      * tag: fluxo
+        value: '{#FLUXO}'
+
+      * tag: scope
+        value: performance
+
+    * uuid: 349c3db6ce9b404c9163c2a16fa821b1
+      expression: last(/Apache NiFi API by JS/nifi.fluxo.deriva\[{#FLUXO_ID}\])>0
+      name: '{#FLUXO}: alteracao nao versionada'
+      priority: INFO
+      description: Process groups do fluxo com versao local modificada.
+      manual_close: 'YES'
+      tags:
+
+      * tag: fluxo
+        value: '{#FLUXO}'
+
+      * tag: scope
+        value: notice
+        lld_macro_paths:
+
+    * lld_macro: '{#FLUXO_ID}'
+      path: \$.id
+
+    * lld_macro: '{#FLUXO}'
+      path: \$.nome
+
+    * lld_macro: '{#PROFUNDIDADE}'
+      path: \$.profundidade
+      tags:
+
+  * tag: class
+    value: software
+
+  * tag: target
+    value: nifi
+
+  * tag: target
+    value: dataflow
+    vendor:
+    name: Internal
+    version: '4.0'
